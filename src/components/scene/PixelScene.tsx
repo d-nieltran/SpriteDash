@@ -258,7 +258,7 @@ export default function PixelScene() {
 					onTriggerWorker={(targetId) => {
 						interactionRef.current?.triggerWorker(targetId);
 					}}
-					canTrigger={!interactionRef.current?.isBusy}
+					canTrigger={true}
 				/>
 			)}
 		</div>
