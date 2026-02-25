@@ -28,9 +28,11 @@ export default function PixelScene() {
 	const statusData = useWorkerStatus();
 	const lastClickRef = useRef(0);
 
-	// Shared hit-test logic — takes world coordinates, returns matched entity
+	// Shared hit-test logic — takes world coordinates, returns closest matched entity
 	const hitTestWorld = useCallback(
 		(worldX: number, worldY: number): SelectedEntity | null => {
+			// Find closest worker within hit area
+			let bestWorker: { id: string; dist: number } | null = null;
 			for (const [id, sprite] of workersRef.current) {
 				const cx = sprite.container.x;
 				const cy = sprite.container.y;
@@ -40,10 +42,19 @@ export default function PixelScene() {
 					worldY >= cy - HIT_PADDING &&
 					worldY <= cy + WORKER_HIT_SIZE + HIT_PADDING
 				) {
-					sprite.showSpeechBubble();
-					return { type: "worker", id };
+					const centerX = cx + WORKER_HIT_SIZE / 2;
+					const centerY = cy + WORKER_HIT_SIZE / 2;
+					const dist = (worldX - centerX) ** 2 + (worldY - centerY) ** 2;
+					if (!bestWorker || dist < bestWorker.dist) {
+						bestWorker = { id, dist };
+					}
 				}
 			}
+			if (bestWorker) {
+				workersRef.current.get(bestWorker.id)?.showSpeechBubble();
+				return { type: "worker", id: bestWorker.id };
+			}
+
 			for (const [id, sprite] of infraRef.current) {
 				const cx = sprite.container.x;
 				const cy = sprite.container.y;
@@ -64,7 +75,7 @@ export default function PixelScene() {
 
 	const toggleSelect = useCallback((entity: SelectedEntity) => {
 		const now = Date.now();
-		if (now - lastClickRef.current < 100) return;
+		if (now - lastClickRef.current < 250) return;
 		lastClickRef.current = now;
 		setSelected((prev) =>
 			prev?.type === entity.type && prev?.id === entity.id ? null : entity,
