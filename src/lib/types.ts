@@ -73,5 +73,20 @@ export interface Theme {
 		oncstrata: string;
 		nieltran: string;
 	};
+	floorTiles: {
+		spoolprices: string;
+		oncstrata: string;
+		nieltran: string;
+	};
+	wallBase: string;
 	spriteSheetPrefix: string;
+}
+
+export interface DecorationConfig {
+	id: string;
+	sprite: string;
+	position: Position;
+	zone: string;
+	width: number;
+	height: number;
 }

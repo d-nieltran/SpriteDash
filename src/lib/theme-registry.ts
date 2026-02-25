@@ -9,6 +9,12 @@ export const THEMES: Theme[] = [
 			oncstrata: "#e8e8f0",
 			nieltran: "#4a3a5c",
 		},
+		floorTiles: {
+			spoolprices: "/sprites/floor/wood-tile.png",
+			oncstrata: "/sprites/floor/lab-tile.png",
+			nieltran: "/sprites/floor/carpet-tile.png",
+		},
+		wallBase: "/sprites/floor/wall-base.png",
 		spriteSheetPrefix: "themes/office",
 	},
 ];

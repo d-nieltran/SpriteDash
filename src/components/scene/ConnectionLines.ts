@@ -1,8 +1,8 @@
 import { Graphics, Container } from "pixi.js";
 import type { WorkerConfig, InfraConfig, WorkerStatus } from "@/lib/types";
 
-const SPRITE_CENTER = 24; // half of 48px worker sprite
-const INFRA_CENTER = 20; // half of 40px infra sprite
+const SPRITE_CENTER = 32; // half of 64px display size
+const INFRA_CENTER = 32; // half of 64px display size
 
 interface Connection {
 	workerId: string;
@@ -13,7 +13,6 @@ interface Connection {
 export class ConnectionLines {
 	container: Container;
 	private connections: Connection[] = [];
-	private dashOffset = 0;
 
 	constructor(
 		workers: { config: WorkerConfig; x: number; y: number }[],

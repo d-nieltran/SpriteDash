@@ -1,7 +1,13 @@
-import { Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Container, Graphics, Sprite, Text, TextStyle, Ticker } from "pixi.js";
 import type { InfraConfig, InfraType } from "@/lib/types";
+import {
+	loadTexture,
+	loadFurnitureFrames,
+	getFurnitureSpritePath,
+	isAnimatedFurniture,
+} from "@/lib/sprite-loader";
 
-const SIZE = 40;
+const DISPLAY_SIZE = 64; // 32px base × 2x
 
 const TYPE_SHAPES: Record<InfraType, { icon: string; baseColor: number }> = {
 	d1: { icon: "DB", baseColor: 0x64748b },
@@ -14,9 +20,15 @@ const TYPE_SHAPES: Record<InfraType, { icon: string; baseColor: number }> = {
 export class FurnitureSprite {
 	container: Container;
 	config: InfraConfig;
-	private body: Graphics;
+	private fallbackBody: Graphics | null = null;
+	private fallbackIcon: Text | null = null;
+	private spriteDisplay: Sprite | null = null;
 	private nameLabel: Text;
+	private glowGraphics: Graphics;
 	private active = false;
+	private animatedFrames: import("pixi.js").Texture[] | null = null;
+	private frameIndex = 0;
+	private ticker: Ticker | null = null;
 
 	constructor(config: InfraConfig) {
 		this.config = config;
@@ -28,24 +40,31 @@ export class FurnitureSprite {
 
 		const shape = TYPE_SHAPES[config.type];
 
-		// Body
-		this.body = new Graphics();
-		this.body.roundRect(0, 0, SIZE, SIZE, 4);
-		this.body.fill(shape.baseColor);
+		// Glow effect (behind everything)
+		this.glowGraphics = new Graphics();
+		this.container.addChild(this.glowGraphics);
+
+		// Fallback body
+		this.fallbackBody = new Graphics();
+		this.fallbackBody.roundRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE, 6);
+		this.fallbackBody.fill(shape.baseColor);
 
 		// Type icon
-		const icon = new Text({
+		this.fallbackIcon = new Text({
 			text: shape.icon,
 			style: new TextStyle({
 				fontFamily: "Courier New",
-				fontSize: 14,
+				fontSize: 18,
 				fill: 0xffffff,
 				fontWeight: "bold",
 			}),
 		});
-		icon.anchor.set(0.5);
-		icon.x = SIZE / 2;
-		icon.y = SIZE / 2;
+		this.fallbackIcon.anchor.set(0.5);
+		this.fallbackIcon.x = DISPLAY_SIZE / 2;
+		this.fallbackIcon.y = DISPLAY_SIZE / 2;
+
+		this.container.addChild(this.fallbackBody);
+		this.container.addChild(this.fallbackIcon);
 
 		// Name label (shown on hover)
 		this.nameLabel = new Text({
@@ -58,12 +77,9 @@ export class FurnitureSprite {
 			}),
 		});
 		this.nameLabel.anchor.set(0.5, 0);
-		this.nameLabel.x = SIZE / 2;
-		this.nameLabel.y = SIZE + 4;
+		this.nameLabel.x = DISPLAY_SIZE / 2;
+		this.nameLabel.y = DISPLAY_SIZE + 4;
 		this.nameLabel.alpha = 0;
-
-		this.container.addChild(this.body);
-		this.container.addChild(icon);
 		this.container.addChild(this.nameLabel);
 
 		// Hover
@@ -75,21 +91,76 @@ export class FurnitureSprite {
 			this.nameLabel.alpha = 0;
 			this.container.scale.set(1);
 		});
+
+		// Load sprite sheet async
+		this.loadSprite();
+	}
+
+	private async loadSprite(): Promise<void> {
+		const path = getFurnitureSpritePath(this.config.id, this.config.type);
+		if (!path) return;
+
+		if (isAnimatedFurniture(this.config.type)) {
+			const frames = await loadFurnitureFrames(path);
+			if (!frames || frames.length === 0) return;
+
+			this.animatedFrames = frames;
+			this.spriteDisplay = new Sprite(frames[0]);
+			this.spriteDisplay.width = DISPLAY_SIZE;
+			this.spriteDisplay.height = DISPLAY_SIZE;
+
+			// Start animation ticker for animated furniture
+			this.ticker = new Ticker();
+			this.ticker.add(() => this.animateFrames());
+			this.ticker.start();
+		} else {
+			const texture = await loadTexture(path);
+			if (!texture) return;
+
+			this.spriteDisplay = new Sprite(texture);
+			this.spriteDisplay.width = DISPLAY_SIZE;
+			this.spriteDisplay.height = DISPLAY_SIZE;
+		}
+
+		// Remove fallback
+		if (this.fallbackBody) {
+			this.container.removeChild(this.fallbackBody);
+			this.fallbackBody.destroy();
+			this.fallbackBody = null;
+		}
+		if (this.fallbackIcon) {
+			this.container.removeChild(this.fallbackIcon);
+			this.fallbackIcon.destroy();
+			this.fallbackIcon = null;
+		}
+
+		// Insert sprite after glow but before name label
+		this.container.addChildAt(this.spriteDisplay, 1);
+	}
+
+	private animateFrames(): void {
+		if (!this.animatedFrames || !this.spriteDisplay || !this.active) return;
+
+		this.frameIndex = (this.frameIndex + 1) % this.animatedFrames.length;
+		this.spriteDisplay.texture = this.animatedFrames[this.frameIndex];
 	}
 
 	setActive(active: boolean): void {
 		if (this.active === active) return;
 		this.active = active;
 
-		this.body.clear();
-		const shape = TYPE_SHAPES[this.config.type];
-		this.body.roundRect(0, 0, SIZE, SIZE, 4);
-		this.body.fill(shape.baseColor);
-
+		this.glowGraphics.clear();
 		if (active) {
-			// Glow effect
-			this.body.roundRect(-2, -2, SIZE + 4, SIZE + 4, 6);
-			this.body.stroke({ width: 2, color: 0x22c55e, alpha: 0.8 });
+			this.glowGraphics.roundRect(-3, -3, DISPLAY_SIZE + 6, DISPLAY_SIZE + 6, 8);
+			this.glowGraphics.stroke({ width: 2, color: 0x22c55e, alpha: 0.8 });
+		}
+
+		// For fallback mode, also redraw body with active indicator
+		if (this.fallbackBody) {
+			const shape = TYPE_SHAPES[this.config.type];
+			this.fallbackBody.clear();
+			this.fallbackBody.roundRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE, 6);
+			this.fallbackBody.fill(shape.baseColor);
 		}
 	}
 
@@ -98,6 +169,8 @@ export class FurnitureSprite {
 	}
 
 	destroy(): void {
+		this.ticker?.stop();
+		this.ticker?.destroy();
 		this.container.destroy({ children: true });
 	}
 }

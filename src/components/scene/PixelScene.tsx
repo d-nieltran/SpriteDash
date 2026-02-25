@@ -20,6 +20,7 @@ export default function PixelScene() {
 	const connectionsRef = useRef<ConnectionLines | null>(null);
 	const [selected, setSelected] = useState<SelectedEntity | null>(null);
 	const [scale, setScale] = useState(1);
+	const [loading, setLoading] = useState(true);
 	const statusData = useWorkerStatus();
 
 	const handleSelect = useCallback((entity: SelectedEntity) => {
@@ -36,11 +37,14 @@ export default function PixelScene() {
 		const scene = new SceneManager();
 		sceneRef.current = scene;
 
-		scene.init(canvas).then(() => {
-			// Draw floor
-			scene.drawFloor(DEFAULT_THEME);
+		scene.init(canvas).then(async () => {
+			// Draw floor (async — loads tile textures)
+			await scene.drawFloor(DEFAULT_THEME);
 
-			// Create worker sprites
+			// Load decorations (async — loads decor sprite textures)
+			await scene.loadDecorations();
+
+			// Create worker sprites (each loads its own sprite sheet async)
 			for (const config of WORKERS) {
 				const sprite = new WorkerSprite(config);
 				sprite.onClick(() =>
@@ -50,7 +54,7 @@ export default function PixelScene() {
 				workersRef.current.set(config.id, sprite);
 			}
 
-			// Create infrastructure sprites
+			// Create infrastructure sprites (each loads its own sprite async)
 			for (const config of INFRA) {
 				const sprite = new FurnitureSprite(config);
 				sprite.onClick(() =>
@@ -77,6 +81,8 @@ export default function PixelScene() {
 			);
 			scene.connectionLayer.addChild(connections.container);
 			connectionsRef.current = connections;
+
+			setLoading(false);
 		});
 
 		return () => {
@@ -141,7 +147,26 @@ export default function PixelScene() {
 				style={{ transform: `scale(${scale})` }}
 			>
 				<HudBar />
-				<canvas ref={canvasRef} />
+				<div style={{ position: "relative" }}>
+					{loading && (
+						<div
+							style={{
+								position: "absolute",
+								inset: 0,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								zIndex: 10,
+								color: "#94a3b8",
+								fontFamily: "Courier New",
+								fontSize: 14,
+							}}
+						>
+							Loading sprites...
+						</div>
+					)}
+					<canvas ref={canvasRef} />
+				</div>
 				{selected && (
 					<DetailPanel
 						entity={selected}

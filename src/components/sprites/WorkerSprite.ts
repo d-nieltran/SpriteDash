@@ -1,27 +1,38 @@
 import {
 	Container,
 	Graphics,
+	Sprite,
 	Text,
 	TextStyle,
+	Texture,
 	Ticker,
 } from "pixi.js";
 import type { WorkerConfig, WorkerStatus, Position } from "@/lib/types";
+import {
+	loadWorkerFrames,
+	getWorkerSpriteName,
+	type WorkerFrames,
+} from "@/lib/sprite-loader";
 
-const SPRITE_SIZE = 48;
-const LABEL_OFFSET_Y = -12;
-const MOVE_SPEED = 2; // pixels per frame
+const DISPLAY_SIZE = 64; // 32px base × 2x scale
+const LABEL_OFFSET_Y = -14;
+const MOVE_SPEED = 2;
 
 export class WorkerSprite {
 	container: Container;
 	config: WorkerConfig;
-	private body: Graphics;
+	private spriteDisplay: Sprite | null = null;
+	private fallbackBody: Graphics | null = null;
 	private nameLabel: Text;
 	private statusDot: Graphics;
 	private currentStatus: WorkerStatus = "idle";
 	private homePosition: Position;
 	private moveTarget: Position | null = null;
 	private animationPhase = 0;
+	private frameIndex = 0;
+	private frameTick = 0;
 	private ticker: Ticker;
+	private frames: WorkerFrames | null = null;
 
 	constructor(config: WorkerConfig) {
 		this.config = config;
@@ -32,9 +43,10 @@ export class WorkerSprite {
 		this.container.eventMode = "static";
 		this.container.cursor = "pointer";
 
-		// Placeholder body (colored square with character initial)
-		this.body = new Graphics();
-		this.drawBody();
+		// Start with fallback placeholder — sprite sheet loaded async
+		this.fallbackBody = new Graphics();
+		this.drawFallbackBody();
+		this.container.addChild(this.fallbackBody);
 
 		// Name label
 		this.nameLabel = new Text({
@@ -47,17 +59,16 @@ export class WorkerSprite {
 			}),
 		});
 		this.nameLabel.anchor.set(0.5, 1);
-		this.nameLabel.x = SPRITE_SIZE / 2;
+		this.nameLabel.x = DISPLAY_SIZE / 2;
 		this.nameLabel.y = LABEL_OFFSET_Y;
 		this.nameLabel.alpha = 0;
 
 		// Status dot
 		this.statusDot = new Graphics();
 		this.drawStatusDot();
-		this.statusDot.x = SPRITE_SIZE - 4;
-		this.statusDot.y = 4;
+		this.statusDot.x = DISPLAY_SIZE - 6;
+		this.statusDot.y = 6;
 
-		this.container.addChild(this.body);
 		this.container.addChild(this.nameLabel);
 		this.container.addChild(this.statusDot);
 
@@ -75,35 +86,60 @@ export class WorkerSprite {
 		this.ticker = new Ticker();
 		this.ticker.add(() => this.animate());
 		this.ticker.start();
+
+		// Load sprite sheet async
+		this.loadSpriteSheet();
 	}
 
-	private drawBody(): void {
-		this.body.clear();
+	private async loadSpriteSheet(): Promise<void> {
+		const name = getWorkerSpriteName(this.config.id);
+		const frames = await loadWorkerFrames(name);
+		if (!frames) return; // Keep fallback
+
+		this.frames = frames;
+
+		// Create sprite display
+		this.spriteDisplay = new Sprite(frames.idle[0]);
+		this.spriteDisplay.width = DISPLAY_SIZE;
+		this.spriteDisplay.height = DISPLAY_SIZE;
+
+		// Remove fallback and add sprite
+		if (this.fallbackBody) {
+			this.container.removeChild(this.fallbackBody);
+			this.fallbackBody.destroy();
+			this.fallbackBody = null;
+		}
+		this.container.addChildAt(this.spriteDisplay, 0);
+	}
+
+	private drawFallbackBody(): void {
+		if (!this.fallbackBody) return;
+		this.fallbackBody.clear();
 		const color = Number.parseInt(this.config.color.replace("#", ""), 16);
 
 		// Body rectangle
-		this.body.roundRect(0, 0, SPRITE_SIZE, SPRITE_SIZE, 6);
-		this.body.fill(color);
+		this.fallbackBody.roundRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE, 8);
+		this.fallbackBody.fill(color);
 
-		// Eyes (2 white dots)
-		this.body.circle(SPRITE_SIZE * 0.35, SPRITE_SIZE * 0.35, 4);
-		this.body.circle(SPRITE_SIZE * 0.65, SPRITE_SIZE * 0.35, 4);
-		this.body.fill(0xffffff);
+		// Eyes
+		this.fallbackBody.circle(DISPLAY_SIZE * 0.35, DISPLAY_SIZE * 0.32, 6);
+		this.fallbackBody.circle(DISPLAY_SIZE * 0.65, DISPLAY_SIZE * 0.32, 6);
+		this.fallbackBody.fill(0xffffff);
 
 		// Pupils
-		this.body.circle(SPRITE_SIZE * 0.37, SPRITE_SIZE * 0.35, 2);
-		this.body.circle(SPRITE_SIZE * 0.67, SPRITE_SIZE * 0.35, 2);
-		this.body.fill(0x1a1c2c);
+		this.fallbackBody.circle(DISPLAY_SIZE * 0.37, DISPLAY_SIZE * 0.32, 3);
+		this.fallbackBody.circle(DISPLAY_SIZE * 0.67, DISPLAY_SIZE * 0.32, 3);
+		this.fallbackBody.fill(0x1a1c2c);
 
-		// Mouth (small arc)
-		this.body.moveTo(SPRITE_SIZE * 0.35, SPRITE_SIZE * 0.6);
-		this.body.quadraticCurveTo(
-			SPRITE_SIZE * 0.5,
-			SPRITE_SIZE * 0.75,
-			SPRITE_SIZE * 0.65,
-			SPRITE_SIZE * 0.6,
+		// Mouth
+		this.fallbackBody.moveTo(DISPLAY_SIZE * 0.35, DISPLAY_SIZE * 0.55);
+		this.fallbackBody.quadraticCurveTo(
+			DISPLAY_SIZE * 0.5,
+			DISPLAY_SIZE * 0.68,
+			DISPLAY_SIZE * 0.65,
+			DISPLAY_SIZE * 0.55,
 		);
-		this.body.stroke({ width: 2, color: 0x1a1c2c });
+		this.fallbackBody.stroke({ width: 2, color: 0x1a1c2c });
 	}
 
 	private drawStatusDot(): void {
@@ -118,25 +154,49 @@ export class WorkerSprite {
 		this.statusDot.fill(colors[this.currentStatus]);
 	}
 
+	private getFramesPerTick(): number {
+		switch (this.currentStatus) {
+			case "working":
+				return 12; // ~200ms at 60fps
+			case "error":
+				return 24; // ~400ms
+			case "celebrate":
+				return 18; // ~300ms
+			default:
+				return 30; // ~500ms for idle
+		}
+	}
+
 	private animate(): void {
 		this.animationPhase += 0.05;
 
-		if (this.currentStatus === "working") {
-			// Bobbing animation
-			this.body.y = Math.sin(this.animationPhase * 3) * 3;
-		} else if (this.currentStatus === "error") {
-			// Shake animation
-			this.body.x = Math.sin(this.animationPhase * 10) * 2;
-		} else if (this.currentStatus === "celebrate") {
-			// Jump animation
-			this.body.y = -Math.abs(Math.sin(this.animationPhase * 4)) * 8;
-		} else {
-			// Idle: gentle breathing
-			this.body.y = Math.sin(this.animationPhase) * 1;
-			this.body.x = 0;
+		// Sprite sheet frame animation
+		if (this.frames && this.spriteDisplay) {
+			this.frameTick++;
+			if (this.frameTick >= this.getFramesPerTick()) {
+				this.frameTick = 0;
+				const statusFrames = this.frames[this.currentStatus];
+				this.frameIndex = (this.frameIndex + 1) % statusFrames.length;
+				this.spriteDisplay.texture = statusFrames[this.frameIndex];
+			}
 		}
 
-		// Movement towards target
+		// Movement animations (apply to both sprite and fallback modes)
+		const target = this.spriteDisplay ?? this.fallbackBody;
+		if (!target) return;
+
+		if (this.currentStatus === "working") {
+			target.y = Math.sin(this.animationPhase * 3) * 3;
+		} else if (this.currentStatus === "error") {
+			target.x = Math.sin(this.animationPhase * 10) * 2;
+		} else if (this.currentStatus === "celebrate") {
+			target.y = -Math.abs(Math.sin(this.animationPhase * 4)) * 8;
+		} else {
+			target.y = Math.sin(this.animationPhase) * 1;
+			target.x = this.spriteDisplay ? 0 : 0;
+		}
+
+		// Position movement towards target
 		if (this.moveTarget) {
 			const dx = this.moveTarget.x - this.container.x;
 			const dy = this.moveTarget.y - this.container.y;
@@ -156,14 +216,28 @@ export class WorkerSprite {
 	setStatus(status: WorkerStatus): void {
 		const prev = this.currentStatus;
 		this.currentStatus = status;
+		this.frameIndex = 0;
+		this.frameTick = 0;
 		this.drawStatusDot();
+
+		// Reset position offsets on status change
+		if (this.spriteDisplay) {
+			this.spriteDisplay.x = 0;
+			this.spriteDisplay.y = 0;
+		}
+		if (this.fallbackBody) {
+			this.fallbackBody.x = 0;
+			this.fallbackBody.y = 0;
+		}
 
 		// Play celebrate briefly on working → idle transition
 		if (prev === "working" && status === "idle") {
 			this.currentStatus = "celebrate";
+			this.frameIndex = 0;
 			this.drawStatusDot();
 			setTimeout(() => {
 				this.currentStatus = "idle";
+				this.frameIndex = 0;
 				this.drawStatusDot();
 			}, 1200);
 		}
