@@ -121,9 +121,9 @@ export class SceneManager {
 				});
 				tilingSprite.x = zone.x;
 				tilingSprite.y = zone.y;
-				// Scale tiles down so they repeat as a subtle pattern
-				tilingSprite.tileScale.set(0.04);
-				tilingSprite.alpha = 0.06;
+				// Very subtle repeating texture overlay
+				tilingSprite.tileScale.set(0.03);
+				tilingSprite.alpha = 0.035;
 				this.floorLayer.addChild(tilingSprite);
 			}
 
