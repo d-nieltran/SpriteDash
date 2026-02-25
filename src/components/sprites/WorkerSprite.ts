@@ -30,7 +30,14 @@ const SPEECH_LINES: Record<string, string[]> = {
 	celebrate: ["Done!", "Nailed it!", "Ship it!", "All green"],
 };
 
-type WanderState = "sitting" | "pausing" | "wandering" | "returning";
+type WanderState =
+	| "sitting"
+	| "pausing"
+	| "wandering"
+	| "returning"
+	| "interaction_walk"
+	| "interaction_converse"
+	| "interaction_return";
 
 export class WorkerSprite {
 	container: Container;
@@ -71,6 +78,10 @@ export class WorkerSprite {
 	// Smooth hover
 	private targetScale = 1;
 	private currentScale = 1;
+
+	// Interaction system
+	private arrivalCallback: (() => void) | null = null;
+	private deferredStatus: WorkerStatus | null = null;
 
 	constructor(config: WorkerConfig) {
 		this.config = config;
@@ -336,8 +347,13 @@ export class WorkerSprite {
 			}
 		}
 
-		// Idle wander behavior
-		if (this.currentStatus === "idle") {
+		// Idle wander behavior (skip during interactions)
+		if (
+			this.currentStatus === "idle" &&
+			this.wanderState !== "interaction_walk" &&
+			this.wanderState !== "interaction_converse" &&
+			this.wanderState !== "interaction_return"
+		) {
 			this.updateIdleWander();
 		}
 
@@ -361,9 +377,15 @@ export class WorkerSprite {
 			if (this.moveProgress >= 1) {
 				this.container.x = this.moveTarget.x;
 				this.container.y = this.moveTarget.y;
-				const arrivedTarget = this.moveTarget;
 				this.moveTarget = null;
 				this.moveStartPos = null;
+
+				// Fire one-shot arrival callback (for interactions)
+				if (this.arrivalCallback) {
+					const cb = this.arrivalCallback;
+					this.arrivalCallback = null;
+					cb();
+				}
 
 				// Handle arrival
 				if (this.currentStatus === "working") {
@@ -413,6 +435,16 @@ export class WorkerSprite {
 	}
 
 	setStatus(status: WorkerStatus): void {
+		// Defer status changes during interactions
+		if (
+			this.wanderState === "interaction_walk" ||
+			this.wanderState === "interaction_converse" ||
+			this.wanderState === "interaction_return"
+		) {
+			this.deferredStatus = status;
+			return;
+		}
+
 		const prev = this.currentStatus;
 		this.currentStatus = status;
 		this.frameIndex = 0;
@@ -528,6 +560,116 @@ export class WorkerSprite {
 		this.container.addChild(bubble);
 		this.speechBubble = bubble;
 		this.speechTimer = 180;
+	}
+
+	/** Whether this worker is available for a conversation */
+	get isAvailableForInteraction(): boolean {
+		return (
+			this.currentStatus === "idle" &&
+			this.wanderState === "sitting" &&
+			!this.moveTarget
+		);
+	}
+
+	/** Walk to a specific point for an interaction */
+	walkToPoint(target: Position): void {
+		this.wanderState = "interaction_walk";
+		this.setMoveTarget(target);
+	}
+
+	/** Register a one-shot callback for when movement completes */
+	onArrive(callback: () => void): void {
+		this.arrivalCallback = callback;
+	}
+
+	/** Enter conversation state (freeze in place) */
+	startConversing(): void {
+		this.wanderState = "interaction_converse";
+		this.moveTarget = null;
+		this.moveStartPos = null;
+	}
+
+	/** Show a specific speech bubble text */
+	showCustomSpeech(text: string, duration = 150): void {
+		if (this.speechBubble) {
+			this.container.removeChild(this.speechBubble);
+			this.speechBubble.destroy({ children: true });
+			this.speechBubble = null;
+		}
+
+		const bubble = new Container();
+		const label = new Text({
+			text,
+			style: new TextStyle({
+				fontFamily: "Courier New",
+				fontSize: 9,
+				fill: 0x1a1c2c,
+				align: "center",
+			}),
+		});
+
+		const padX = 8;
+		const padY = 4;
+		const bg = new Graphics();
+		const bw = label.width + padX * 2;
+		const bh = label.height + padY * 2;
+
+		bg.roundRect(1, 1, bw, bh, 6);
+		bg.fill({ color: 0x000000, alpha: 0.2 });
+		bg.roundRect(0, 0, bw, bh, 6);
+		bg.fill(0xffffff);
+		const cx = bw / 2;
+		bg.moveTo(cx - 4, bh);
+		bg.lineTo(cx, bh + 5);
+		bg.lineTo(cx + 4, bh);
+		bg.closePath();
+		bg.fill(0xffffff);
+
+		label.x = padX;
+		label.y = padY;
+		bubble.addChild(bg);
+		bubble.addChild(label);
+		bubble.x = DISPLAY_SIZE / 2 - bw / 2;
+		bubble.y = -(bh + 12);
+
+		this.container.addChild(bubble);
+		this.speechBubble = bubble;
+		this.speechTimer = duration;
+	}
+
+	/** Walk back to home position after an interaction.
+	 *  Caller should use onArrive() before calling this if they need a callback. */
+	returnFromInteraction(): void {
+		this.wanderState = "interaction_return";
+		this.setMoveTarget({ ...this.homePosition });
+	}
+
+	/** Reset to normal idle state after interaction completes */
+	finishInteraction(): void {
+		this.wanderState = "sitting";
+		this.idleTimer = 300 + Math.random() * 600;
+		// Apply any deferred status change
+		if (this.deferredStatus) {
+			const s = this.deferredStatus;
+			this.deferredStatus = null;
+			this.setStatus(s);
+		}
+	}
+
+	/** Brief cosmetic "working" flash for trigger (no real status change) */
+	playBriefWorking(durationMs = 3000): void {
+		const prevStatus = this.currentStatus;
+		this.currentStatus = "working";
+		this.frameIndex = 0;
+		this.frameTick = 0;
+		this.drawStatusDot();
+
+		setTimeout(() => {
+			this.currentStatus = prevStatus;
+			this.frameIndex = 0;
+			this.frameTick = 0;
+			this.drawStatusDot();
+		}, durationMs);
 	}
 
 	destroy(): void {

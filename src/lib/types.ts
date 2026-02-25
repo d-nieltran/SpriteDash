@@ -22,6 +22,7 @@ export interface WorkerConfig {
 	statusKey: string;
 	analyticsScriptName: string;
 	color: string;
+	role?: "worker" | "manager";
 }
 
 export interface InfraConfig {

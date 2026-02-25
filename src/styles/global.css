@@ -284,3 +284,36 @@ body {
 	0%, 100% { opacity: 0.3; }
 	50% { opacity: 0.8; }
 }
+
+/* Trigger buttons (Sonne's dispatch panel) */
+.trigger-btn {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 8px 12px;
+	border-radius: 8px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	background: rgba(255, 255, 255, 0.04);
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 12px;
+	font-family: inherit;
+	cursor: pointer;
+	transition: all 0.15s;
+}
+.trigger-btn:hover:not(:disabled) {
+	background: rgba(255, 255, 255, 0.1);
+	border-color: rgba(255, 255, 255, 0.15);
+	color: white;
+}
+.trigger-btn:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.trigger-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}

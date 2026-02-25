@@ -67,6 +67,14 @@ export const WORKSTATIONS: Workstation[] = [
 		chair: { cx: 710, cy: 360 },
 		screenColor: 0xf59e0b,
 	},
+	// Row 1 far right: manager desk
+	{
+		workerId: "sonne-manager",
+		desk: { x: 980, y: 230, w: 120, h: 40 },
+		monitor: { x: 1028, y: 220 },
+		chair: { cx: 1040, cy: 300 },
+		screenColor: 0xe879f9,
+	},
 ];
 
 // Room decorations are now drawn with pixel-art Graphics in SceneManager.drawRoomDecor()

@@ -376,8 +376,8 @@ export class SceneManager {
 		drawPlant(floorDecor, 440, 370, 1.0);
 		drawPlant(floorDecor, 760, 250, 1.0);
 
-		// Water cooler
-		drawWaterCooler(floorDecor, 1090, 245);
+		// Water cooler (moved to avoid Sonne's desk)
+		drawWaterCooler(floorDecor, 1150, 130);
 
 		this.decorLayer.addChild(floorDecor);
 

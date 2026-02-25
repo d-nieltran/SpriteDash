@@ -126,6 +126,7 @@ const WORKER_SPRITE_MAP: Record<string, string> = {
 	"kol-sync-worker": "librarian",
 	"oncology-sync-worker": "courier",
 	"nccn-monitor-worker": "detective",
+	"sonne-manager": "manager",
 };
 
 export function getWorkerSpriteName(workerId: string): string {

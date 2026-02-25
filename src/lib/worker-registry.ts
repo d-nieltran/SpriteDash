@@ -133,6 +133,28 @@ export const WORKERS: WorkerConfig[] = [
 		analyticsScriptName: "nccn-monitor-worker",
 		color: "#f59e0b",
 	},
+	{
+		id: "sonne-manager",
+		name: "Sonne",
+		character: "The Manager",
+		project: "spritedash",
+		cron: "",
+		cronLabel: "On demand",
+		position: { x: 1018, y: 270 },
+		personality:
+			"Energetic manager who keeps the team running. Can dispatch any worker on demand.",
+		activities: [
+			"Dispatch manual cron runs to any worker",
+			"Office morale and team coordination",
+			"Status checks and progress reviews",
+		],
+		connectedInfra: [],
+		externalApis: [],
+		statusKey: "",
+		analyticsScriptName: "",
+		color: "#e879f9",
+		role: "manager",
+	},
 ];
 
 export function getWorker(id: string): WorkerConfig | undefined {

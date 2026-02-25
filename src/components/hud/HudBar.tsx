@@ -68,7 +68,7 @@ export function HudBar() {
 function getNextEvent(now: Date) {
 	let earliest: { name: string; color: string; time: Date } | null = null;
 
-	for (const worker of WORKERS) {
+	for (const worker of WORKERS.filter((w) => w.cron)) {
 		const next = getNextRun(worker.cron, now);
 		if (!earliest || next < earliest.time) {
 			earliest = {

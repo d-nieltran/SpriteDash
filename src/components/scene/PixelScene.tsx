@@ -3,6 +3,7 @@ import { SceneManager } from "./SceneManager";
 import { WorkerSprite } from "../sprites/WorkerSprite";
 import { FurnitureSprite } from "../sprites/FurnitureSprite";
 import { ConnectionLines } from "./ConnectionLines";
+import { InteractionManager } from "./InteractionManager";
 import { DetailPanel } from "../panel/DetailPanel";
 import { HudBar } from "../hud/HudBar";
 import { WORKERS } from "@/lib/worker-registry";
@@ -21,6 +22,7 @@ export default function PixelScene() {
 	const workersRef = useRef<Map<string, WorkerSprite>>(new Map());
 	const infraRef = useRef<Map<string, FurnitureSprite>>(new Map());
 	const connectionsRef = useRef<ConnectionLines | null>(null);
+	const interactionRef = useRef<InteractionManager | null>(null);
 	const [selected, setSelected] = useState<SelectedEntity | null>(null);
 	const [loading, setLoading] = useState(true);
 	const statusData = useWorkerStatus();
@@ -117,6 +119,10 @@ export default function PixelScene() {
 			scene.connectionLayer.addChild(connections.container);
 			connectionsRef.current = connections;
 
+			// Interaction manager (conversations + triggers)
+			const interactions = new InteractionManager(workersRef.current);
+			interactionRef.current = interactions;
+
 			// PixiJS stage-level pointerdown for click handling
 			scene.onStageClick((worldX, worldY) => {
 				const entity = hitTestWorld(worldX, worldY);
@@ -161,6 +167,7 @@ export default function PixelScene() {
 		return () => {
 			window.removeEventListener("mousedown", handleWindowMouseDown, true);
 			window.removeEventListener("resize", handleResize);
+			interactionRef.current?.destroy();
 			for (const sprite of workersRef.current.values()) sprite.destroy();
 			for (const sprite of infraRef.current.values()) sprite.destroy();
 			connectionsRef.current?.destroy();
@@ -179,11 +186,14 @@ export default function PixelScene() {
 		}
 	}, [selected]);
 
-	// Update sprites from status data
+	// Update sprites from status data (skip workers with no statusKey, e.g. Sonne)
 	useEffect(() => {
 		if (!statusData) return;
 
 		for (const [id, data] of Object.entries(statusData.workers)) {
+			const worker = WORKERS.find((w) => w.id === id);
+			if (!worker?.statusKey) continue;
+
 			const sprite = workersRef.current.get(id);
 			const status = data.selfReport?.status as WorkerStatus | undefined;
 
@@ -191,33 +201,27 @@ export default function PixelScene() {
 				sprite.setStatus(status);
 
 				if (status === "working") {
-					const worker = WORKERS.find((w) => w.id === id);
-					if (worker) {
-						// Workers stay near desks — use proxy positions instead of server room infra
-						const proxyPositions = worker.connectedInfra.map(
-							(_infraId, i) => ({
-								x:
-									worker.position.x +
-									(i % 2 === 0 ? -60 : 60) +
-									i * 20,
-								y: Math.min(
-									worker.position.y + 40 + i * 15,
-									410,
-								),
-							}),
-						);
-						sprite.startWorking(proxyPositions);
+					// Workers stay near desks — use proxy positions instead of server room infra
+					const proxyPositions = worker.connectedInfra.map(
+						(_infraId, i) => ({
+							x:
+								worker.position.x +
+								(i % 2 === 0 ? -60 : 60) +
+								i * 20,
+							y: Math.min(
+								worker.position.y + 40 + i * 15,
+								410,
+							),
+						}),
+					);
+					sprite.startWorking(proxyPositions);
 
-						for (const infraId of worker.connectedInfra) {
-							infraRef.current.get(infraId)?.setActive(true);
-						}
+					for (const infraId of worker.connectedInfra) {
+						infraRef.current.get(infraId)?.setActive(true);
 					}
 				} else {
-					const worker = WORKERS.find((w) => w.id === id);
-					if (worker) {
-						for (const infraId of worker.connectedInfra) {
-							infraRef.current.get(infraId)?.setActive(false);
-						}
+					for (const infraId of worker.connectedInfra) {
+						infraRef.current.get(infraId)?.setActive(false);
 					}
 				}
 			}
@@ -251,6 +255,10 @@ export default function PixelScene() {
 					entity={selected}
 					statusData={statusData?.workers ?? {}}
 					onClose={() => setSelected(null)}
+					onTriggerWorker={(targetId) => {
+						interactionRef.current?.triggerWorker(targetId);
+					}}
+					canTrigger={!interactionRef.current?.isBusy}
 				/>
 			)}
 		</div>
