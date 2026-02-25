@@ -100,8 +100,34 @@ export default function PixelScene() {
 
 		for (const [id, data] of Object.entries(statusData.workers)) {
 			const sprite = workersRef.current.get(id);
-			if (sprite && data.selfReport) {
-				sprite.setStatus(data.selfReport.status as WorkerStatus);
+			const status = data.selfReport?.status as WorkerStatus | undefined;
+
+			if (sprite && status) {
+				sprite.setStatus(status);
+
+				// When working: tell worker to walk between its connected infra
+				if (status === "working") {
+					const worker = WORKERS.find((w) => w.id === id);
+					if (worker) {
+						const positions = worker.connectedInfra
+							.map((infraId) => INFRA.find((i) => i.id === infraId))
+							.filter(Boolean)
+							.map((i) => i!.position);
+						sprite.startWorking(positions);
+
+						for (const infraId of worker.connectedInfra) {
+							infraRef.current.get(infraId)?.setActive(true);
+						}
+					}
+				} else {
+					// Deactivate infra when not working
+					const worker = WORKERS.find((w) => w.id === id);
+					if (worker) {
+						for (const infraId of worker.connectedInfra) {
+							infraRef.current.get(infraId)?.setActive(false);
+						}
+					}
+				}
 			}
 
 			if (data.selfReport) {
@@ -109,15 +135,6 @@ export default function PixelScene() {
 					id,
 					data.selfReport.status as WorkerStatus,
 				);
-			}
-
-			if (data.selfReport?.status === "working") {
-				const worker = WORKERS.find((w) => w.id === id);
-				if (worker) {
-					for (const infraId of worker.connectedInfra) {
-						infraRef.current.get(infraId)?.setActive(true);
-					}
-				}
 			}
 		}
 	}, [statusData]);

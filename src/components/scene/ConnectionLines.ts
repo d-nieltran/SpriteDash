@@ -1,8 +1,8 @@
 import { Graphics, Container } from "pixi.js";
 import type { WorkerConfig, InfraConfig, WorkerStatus } from "@/lib/types";
 
-const SPRITE_CENTER = 48; // half of 96px worker display size
-const INFRA_CENTER = 36; // half of 72px infra display size
+const SPRITE_CENTER = 32; // half of 64px worker display size
+const INFRA_CENTER = 24; // half of 48px infra display size
 
 interface Connection {
 	workerId: string;

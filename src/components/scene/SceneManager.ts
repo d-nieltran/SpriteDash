@@ -121,7 +121,9 @@ export class SceneManager {
 				});
 				tilingSprite.x = zone.x;
 				tilingSprite.y = zone.y;
-				tilingSprite.alpha = 0.3;
+				// Scale tiles down so they repeat as a small pattern
+				tilingSprite.tileScale.set(0.06);
+				tilingSprite.alpha = 0.15;
 				this.floorLayer.addChild(tilingSprite);
 			}
 
@@ -170,8 +172,9 @@ export class SceneManager {
 			const sprite = new (await import("pixi.js")).Sprite(texture);
 			sprite.x = decor.x;
 			sprite.y = decor.y;
-			sprite.width = decor.width * 2;
-			sprite.height = decor.height * 2;
+			sprite.width = decor.width;
+			sprite.height = decor.height;
+			sprite.alpha = 0.7;
 			this.decorLayer.addChild(sprite);
 		}
 	}

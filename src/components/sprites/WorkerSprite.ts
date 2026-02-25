@@ -15,9 +15,11 @@ import {
 	type WorkerFrames,
 } from "@/lib/sprite-loader";
 
-const DISPLAY_SIZE = 96; // Larger display for visibility
-const LABEL_OFFSET_Y = -14;
-const MOVE_SPEED = 2;
+const DISPLAY_SIZE = 64;
+const LABEL_OFFSET_Y = -10;
+const MOVE_SPEED = 1.5;
+const PAUSE_MIN = 80; // ticks at infra before moving on
+const PAUSE_MAX = 140;
 
 export class WorkerSprite {
 	container: Container;
@@ -34,6 +36,11 @@ export class WorkerSprite {
 	private frameTick = 0;
 	private ticker: Ticker;
 	private frames: WorkerFrames | null = null;
+
+	// Behavior system
+	private infraPositions: Position[] = [];
+	private pauseTimer = 0;
+	private lastVisitedIndex = -1;
 
 	constructor(config: WorkerConfig) {
 		this.config = config;
@@ -68,8 +75,8 @@ export class WorkerSprite {
 		// Status dot
 		this.statusDot = new Graphics();
 		this.drawStatusDot();
-		this.statusDot.x = DISPLAY_SIZE - 6;
-		this.statusDot.y = 6;
+		this.statusDot.x = DISPLAY_SIZE - 4;
+		this.statusDot.y = 4;
 
 		this.container.addChild(this.nameLabel);
 		this.container.addChild(this.statusDot);
@@ -96,16 +103,13 @@ export class WorkerSprite {
 	private async loadSpriteSheet(): Promise<void> {
 		const name = getWorkerSpriteName(this.config.id);
 		const frames = await loadWorkerFrames(name);
-		if (!frames) return; // Keep fallback
+		if (!frames) return;
 
 		this.frames = frames;
-
-		// Create sprite display
 		this.spriteDisplay = new Sprite(frames.idle[0]);
 		this.spriteDisplay.width = DISPLAY_SIZE;
 		this.spriteDisplay.height = DISPLAY_SIZE;
 
-		// Remove fallback and add sprite
 		if (this.fallbackBody) {
 			this.container.removeChild(this.fallbackBody);
 			this.fallbackBody.destroy();
@@ -118,30 +122,14 @@ export class WorkerSprite {
 		if (!this.fallbackBody) return;
 		this.fallbackBody.clear();
 		const color = Number.parseInt(this.config.color.replace("#", ""), 16);
-
-		// Body rectangle
-		this.fallbackBody.roundRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE, 8);
+		this.fallbackBody.roundRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE, 6);
 		this.fallbackBody.fill(color);
-
-		// Eyes
-		this.fallbackBody.circle(DISPLAY_SIZE * 0.35, DISPLAY_SIZE * 0.32, 6);
-		this.fallbackBody.circle(DISPLAY_SIZE * 0.65, DISPLAY_SIZE * 0.32, 6);
+		this.fallbackBody.circle(DISPLAY_SIZE * 0.35, DISPLAY_SIZE * 0.32, 4);
+		this.fallbackBody.circle(DISPLAY_SIZE * 0.65, DISPLAY_SIZE * 0.32, 4);
 		this.fallbackBody.fill(0xffffff);
-
-		// Pupils
-		this.fallbackBody.circle(DISPLAY_SIZE * 0.37, DISPLAY_SIZE * 0.32, 3);
-		this.fallbackBody.circle(DISPLAY_SIZE * 0.67, DISPLAY_SIZE * 0.32, 3);
+		this.fallbackBody.circle(DISPLAY_SIZE * 0.37, DISPLAY_SIZE * 0.32, 2);
+		this.fallbackBody.circle(DISPLAY_SIZE * 0.67, DISPLAY_SIZE * 0.32, 2);
 		this.fallbackBody.fill(0x1a1c2c);
-
-		// Mouth
-		this.fallbackBody.moveTo(DISPLAY_SIZE * 0.35, DISPLAY_SIZE * 0.55);
-		this.fallbackBody.quadraticCurveTo(
-			DISPLAY_SIZE * 0.5,
-			DISPLAY_SIZE * 0.68,
-			DISPLAY_SIZE * 0.65,
-			DISPLAY_SIZE * 0.55,
-		);
-		this.fallbackBody.stroke({ width: 2, color: 0x1a1c2c });
 	}
 
 	private drawStatusDot(): void {
@@ -152,21 +140,43 @@ export class WorkerSprite {
 			error: 0xef4444,
 			celebrate: 0xfacc15,
 		};
-		this.statusDot.circle(0, 0, 5);
+		this.statusDot.circle(0, 0, 4);
 		this.statusDot.fill(colors[this.currentStatus]);
 	}
 
 	private getFramesPerTick(): number {
 		switch (this.currentStatus) {
 			case "working":
-				return 12; // ~200ms at 60fps
+				return 12;
 			case "error":
-				return 24; // ~400ms
+				return 24;
 			case "celebrate":
-				return 18; // ~300ms
+				return 18;
 			default:
-				return 30; // ~500ms for idle
+				return 30;
 		}
+	}
+
+	private pickNextInfra(): void {
+		if (this.infraPositions.length === 0) return;
+
+		// Pick a different infra than last visited
+		let idx: number;
+		if (this.infraPositions.length === 1) {
+			idx = 0;
+		} else {
+			do {
+				idx = Math.floor(Math.random() * this.infraPositions.length);
+			} while (idx === this.lastVisitedIndex);
+		}
+		this.lastVisitedIndex = idx;
+
+		// Offset target so worker stands next to infra, not on top
+		const infra = this.infraPositions[idx];
+		this.moveTarget = {
+			x: infra.x + (Math.random() > 0.5 ? -20 : 20),
+			y: infra.y - 16,
+		};
 	}
 
 	private animate(): void {
@@ -183,22 +193,34 @@ export class WorkerSprite {
 			}
 		}
 
-		// Movement animations (apply to both sprite and fallback modes)
-		const target = this.spriteDisplay ?? this.fallbackBody;
-		if (!target) return;
+		const visual = this.spriteDisplay ?? this.fallbackBody;
+		if (!visual) return;
 
+		// Status-based micro-animations (applied to the visual, not the container)
 		if (this.currentStatus === "working") {
-			target.y = Math.sin(this.animationPhase * 3) * 3;
+			visual.y = Math.sin(this.animationPhase * 3) * 2;
 		} else if (this.currentStatus === "error") {
-			target.x = Math.sin(this.animationPhase * 10) * 2;
+			visual.x = Math.sin(this.animationPhase * 10) * 2;
 		} else if (this.currentStatus === "celebrate") {
-			target.y = -Math.abs(Math.sin(this.animationPhase * 4)) * 8;
+			visual.y = -Math.abs(Math.sin(this.animationPhase * 4)) * 6;
 		} else {
-			target.y = Math.sin(this.animationPhase) * 1;
-			target.x = this.spriteDisplay ? 0 : 0;
+			// Idle: subtle breathing
+			visual.y = Math.sin(this.animationPhase) * 0.5;
+			visual.x = 0;
 		}
 
-		// Position movement towards target
+		// Working behavior: walk between infrastructure
+		if (this.currentStatus === "working" && this.infraPositions.length > 0) {
+			if (this.pauseTimer > 0) {
+				// Paused at infra, "interacting"
+				this.pauseTimer--;
+			} else if (!this.moveTarget) {
+				// Done pausing, pick next infra to visit
+				this.pickNextInfra();
+			}
+		}
+
+		// Linear movement towards target
 		if (this.moveTarget) {
 			const dx = this.moveTarget.x - this.container.x;
 			const dy = this.moveTarget.y - this.container.y;
@@ -208,11 +230,31 @@ export class WorkerSprite {
 				this.container.x = this.moveTarget.x;
 				this.container.y = this.moveTarget.y;
 				this.moveTarget = null;
+				// Arrived: start pause timer if working
+				if (this.currentStatus === "working") {
+					this.pauseTimer =
+						PAUSE_MIN + Math.floor(Math.random() * (PAUSE_MAX - PAUSE_MIN));
+				}
 			} else {
 				this.container.x += (dx / dist) * MOVE_SPEED;
 				this.container.y += (dy / dist) * MOVE_SPEED;
 			}
 		}
+	}
+
+	/** Start walking between connected infrastructure */
+	startWorking(infraPositions: Position[]): void {
+		this.infraPositions = infraPositions;
+		this.lastVisitedIndex = -1;
+		this.pauseTimer = 0;
+		this.pickNextInfra();
+	}
+
+	/** Stop moving and freeze at current position */
+	stopMoving(): void {
+		this.moveTarget = null;
+		this.infraPositions = [];
+		this.pauseTimer = 0;
 	}
 
 	setStatus(status: WorkerStatus): void {
@@ -222,7 +264,7 @@ export class WorkerSprite {
 		this.frameTick = 0;
 		this.drawStatusDot();
 
-		// Reset position offsets on status change
+		// Reset visual offsets
 		if (this.spriteDisplay) {
 			this.spriteDisplay.x = 0;
 			this.spriteDisplay.y = 0;
@@ -232,21 +274,33 @@ export class WorkerSprite {
 			this.fallbackBody.y = 0;
 		}
 
-		// Play celebrate briefly on working → idle transition
+		// Working → idle: celebrate briefly, then return home
 		if (prev === "working" && status === "idle") {
+			this.stopMoving();
 			this.currentStatus = "celebrate";
 			this.frameIndex = 0;
 			this.drawStatusDot();
+			// Return home while celebrating
+			this.moveTarget = { ...this.homePosition };
 			setTimeout(() => {
 				this.currentStatus = "idle";
 				this.frameIndex = 0;
 				this.drawStatusDot();
 			}, 1200);
+			return;
 		}
-	}
 
-	moveTo(target: Position): void {
-		this.moveTarget = target;
+		// Error: stop where you are
+		if (status === "error") {
+			this.stopMoving();
+			return;
+		}
+
+		// Idle: return home
+		if (status === "idle") {
+			this.stopMoving();
+			this.moveTarget = { ...this.homePosition };
+		}
 	}
 
 	returnHome(): void {
