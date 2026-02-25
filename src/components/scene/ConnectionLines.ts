@@ -19,7 +19,7 @@ export class ConnectionLines {
 		infra: { config: InfraConfig; x: number; y: number }[],
 	) {
 		this.container = new Container();
-		this.container.alpha = 0.15;
+		this.container.alpha = 0.35;
 
 		const infraMap = new Map(infra.map((i) => [i.config.id, i]));
 
@@ -37,6 +37,7 @@ export class ConnectionLines {
 					target.y + INFRA_CENTER,
 					Number.parseInt(worker.config.color.replace("#", ""), 16),
 				);
+				line.alpha = 0; // Hidden by default
 				this.container.addChild(line);
 				this.connections.push({
 					workerId: worker.config.id,
@@ -76,8 +77,23 @@ export class ConnectionLines {
 	setWorkerActive(workerId: string, status: WorkerStatus): void {
 		for (const conn of this.connections) {
 			if (conn.workerId === workerId) {
-				conn.line.alpha = status === "working" ? 4 : 1;
+				conn.line.alpha = status === "working" ? 1 : 0;
 			}
+		}
+	}
+
+	/** Show/hide connections for a selected entity */
+	setSelected(entityType: string | null, entityId: string | null): void {
+		for (const conn of this.connections) {
+			if (entityType === "worker" && conn.workerId === entityId) {
+				conn.line.alpha = 1;
+			} else if (entityType === "infra" && conn.infraId === entityId) {
+				conn.line.alpha = 1;
+			} else if (!entityType) {
+				// Nothing selected — hide all
+				conn.line.alpha = 0;
+			}
+			// Don't hide lines that are already shown by setWorkerActive
 		}
 	}
 

@@ -69,16 +69,5 @@ export interface Theme {
 	id: string;
 	name: string;
 	floorColor: string;
-	floorTile: string;
-	wallBase: string;
 	spriteSheetPrefix: string;
-}
-
-export interface DecorationConfig {
-	id: string;
-	sprite: string;
-	position: Position;
-	zone: string;
-	width: number;
-	height: number;
 }

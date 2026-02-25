@@ -1,15 +1,75 @@
-export const ROOM = {
-	label: "SpriteDash HQ",
-	x: 0,
-	y: 0,
-	width: 1280,
-	height: 720,
-};
-
 export const SCENE_WIDTH = 1280;
 export const SCENE_HEIGHT = 720;
 export const HUD_HEIGHT = 60;
 
+// Room zone boundaries
+export const WALL_Y = 0;
+export const WALL_HEIGHT = 60;
+export const OFFICE_Y = 60;
+export const OFFICE_HEIGHT = 370;
+export const DIVIDER_Y = 430;
+export const DIVIDER_HEIGHT = 30;
+export const SERVER_Y = 460;
+export const SERVER_HEIGHT = 260;
+
+export const ROOM = {
+	label: "SPRITEDASH HQ",
+	x: 0,
+	y: 0,
+	width: SCENE_WIDTH,
+	height: SCENE_HEIGHT,
+};
+
+// Workstation definitions — Graphics-drawn desks with worker positions
+export interface Workstation {
+	workerId: string;
+	desk: { x: number; y: number; w: number; h: number };
+	monitor: { x: number; y: number };
+	chair: { cx: number; cy: number };
+	screenColor: number;
+}
+
+export const WORKSTATIONS: Workstation[] = [
+	// Row 1: 3 desks at y=140
+	{
+		workerId: "spoolprices-worker",
+		desk: { x: 140, y: 140, w: 120, h: 40 },
+		monitor: { x: 188, y: 130 },
+		chair: { cx: 200, cy: 210 },
+		screenColor: 0xef7d57,
+	},
+	{
+		workerId: "oncstrata-worker",
+		desk: { x: 480, y: 140, w: 120, h: 40 },
+		monitor: { x: 528, y: 130 },
+		chair: { cx: 540, cy: 210 },
+		screenColor: 0x0d9488,
+	},
+	{
+		workerId: "kol-sync-worker",
+		desk: { x: 820, y: 140, w: 120, h: 40 },
+		monitor: { x: 868, y: 130 },
+		chair: { cx: 880, cy: 210 },
+		screenColor: 0x3f8efc,
+	},
+	// Row 2: 2 desks at y=290
+	{
+		workerId: "oncology-sync-worker",
+		desk: { x: 310, y: 290, w: 120, h: 40 },
+		monitor: { x: 358, y: 280 },
+		chair: { cx: 370, cy: 360 },
+		screenColor: 0xa78bfa,
+	},
+	{
+		workerId: "nccn-monitor-worker",
+		desk: { x: 650, y: 290, w: 120, h: 40 },
+		monitor: { x: 698, y: 280 },
+		chair: { cx: 710, cy: 360 },
+		screenColor: 0xf59e0b,
+	},
+];
+
+// Decoration sprites — wall-mounted + plants only (no desk/chair PNGs)
 export interface Decoration {
 	id: string;
 	sprite: string;
@@ -20,43 +80,23 @@ export interface Decoration {
 }
 
 export const DECORATIONS: Decoration[] = [
-	// === NORTH WALL (y=0-80): shelves, charts, whiteboards ===
-	{ id: "wall-shelf1", sprite: "/sprites/decor/bookshelf.png", x: 20, y: 20, width: 44, height: 64 },
-	{ id: "wall-chart1", sprite: "/sprites/decor/wall-chart.png", x: 160, y: 30, width: 36, height: 36 },
-	{ id: "wall-white1", sprite: "/sprites/decor/whiteboard.png", x: 380, y: 20, width: 72, height: 48 },
-	{ id: "wall-chart2", sprite: "/sprites/decor/wall-chart.png", x: 620, y: 30, width: 36, height: 36 },
-	{ id: "wall-white2", sprite: "/sprites/decor/whiteboard.png", x: 820, y: 20, width: 72, height: 48 },
-	{ id: "wall-shelf2", sprite: "/sprites/decor/bookshelf.png", x: 1050, y: 20, width: 44, height: 64 },
-	{ id: "wall-shelf3", sprite: "/sprites/decor/bookshelf.png", x: 1210, y: 20, width: 44, height: 64 },
+	// Back wall (y=0-60) — mounted against opaque wall
+	{ id: "wall-shelf1", sprite: "/sprites/decor/bookshelf.png", x: 30, y: 0, width: 44, height: 60 },
+	{ id: "wall-chart1", sprite: "/sprites/decor/wall-chart.png", x: 120, y: 14, width: 36, height: 36 },
+	{ id: "wall-white1", sprite: "/sprites/decor/whiteboard.png", x: 300, y: 6, width: 72, height: 48 },
+	{ id: "wall-chart2", sprite: "/sprites/decor/wall-chart.png", x: 460, y: 14, width: 36, height: 36 },
+	{ id: "wall-shelf2", sprite: "/sprites/decor/bookshelf.png", x: 600, y: 0, width: 44, height: 60 },
+	{ id: "wall-white2", sprite: "/sprites/decor/whiteboard.png", x: 740, y: 6, width: 72, height: 48 },
+	{ id: "wall-chart3", sprite: "/sprites/decor/wall-chart.png", x: 900, y: 14, width: 36, height: 36 },
+	{ id: "wall-shelf3", sprite: "/sprites/decor/bookshelf.png", x: 1040, y: 0, width: 44, height: 60 },
+	{ id: "wall-chart4", sprite: "/sprites/decor/wall-chart.png", x: 1180, y: 14, width: 36, height: 36 },
 
-	// === DESK+CHAIR COMBOS (near each worker's home position) ===
-	// Clerk desk area (~150, 150)
-	{ id: "desk1", sprite: "/sprites/decor/desk-computer.png", x: 120, y: 120, width: 56, height: 48 },
-	{ id: "chair1", sprite: "/sprites/decor/office-chair.png", x: 178, y: 150, width: 28, height: 28 },
-	// Scientist desk area (~400, 250)
-	{ id: "desk2", sprite: "/sprites/decor/desk-computer.png", x: 370, y: 220, width: 56, height: 48 },
-	{ id: "chair2", sprite: "/sprites/decor/office-chair.png", x: 428, y: 250, width: 28, height: 28 },
-	// Librarian desk area (~660, 140)
-	{ id: "desk3", sprite: "/sprites/decor/desk-computer.png", x: 630, y: 110, width: 56, height: 48 },
-	{ id: "chair3", sprite: "/sprites/decor/office-chair.png", x: 688, y: 140, width: 28, height: 28 },
-	// Courier desk area (~920, 270)
-	{ id: "desk4", sprite: "/sprites/decor/desk-computer.png", x: 890, y: 240, width: 56, height: 48 },
-	{ id: "chair4", sprite: "/sprites/decor/office-chair.png", x: 948, y: 270, width: 28, height: 28 },
-	// Detective desk area (~1140, 190)
-	{ id: "desk5", sprite: "/sprites/decor/desk-computer.png", x: 1110, y: 160, width: 56, height: 48 },
-	{ id: "chair5", sprite: "/sprites/decor/office-chair.png", x: 1168, y: 190, width: 28, height: 28 },
+	// Corner plants
+	{ id: "plant-nw", sprite: "/sprites/decor/potted-plant-1.png", x: 20, y: 70, width: 24, height: 40 },
+	{ id: "plant-ne", sprite: "/sprites/decor/potted-plant-2.png", x: 1236, y: 70, width: 24, height: 40 },
+	{ id: "plant-sw", sprite: "/sprites/decor/potted-plant-1.png", x: 20, y: 386, width: 24, height: 40 },
+	{ id: "plant-se", sprite: "/sprites/decor/potted-plant-2.png", x: 1236, y: 386, width: 24, height: 40 },
 
-	// === COMMUNAL ===
-	{ id: "water1", sprite: "/sprites/decor/water-cooler.png", x: 560, y: 420, width: 24, height: 44 },
-	{ id: "lab-flask", sprite: "/sprites/decor/lab-flask.png", x: 500, y: 350, width: 24, height: 36 },
-	{ id: "microscope", sprite: "/sprites/decor/microscope.png", x: 535, y: 345, width: 32, height: 32 },
-
-	// === CORNER PLANTS ===
-	{ id: "plant-nw", sprite: "/sprites/decor/potted-plant-1.png", x: 80, y: 90, width: 24, height: 40 },
-	{ id: "plant-ne", sprite: "/sprites/decor/potted-plant-2.png", x: 1245, y: 90, width: 24, height: 40 },
-	{ id: "plant-sw", sprite: "/sprites/decor/potted-plant-1.png", x: 16, y: 480, width: 24, height: 40 },
-	{ id: "plant-se", sprite: "/sprites/decor/potted-plant-2.png", x: 1248, y: 480, width: 24, height: 40 },
-
-	// === SERVER AREA ===
-	{ id: "server1", sprite: "/sprites/decor/server-rack.png", x: 1200, y: 540, width: 44, height: 64 },
+	// Communal
+	{ id: "water1", sprite: "/sprites/decor/water-cooler.png", x: 1100, y: 240, width: 24, height: 44 },
 ];

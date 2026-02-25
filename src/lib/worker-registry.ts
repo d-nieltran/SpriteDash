@@ -8,7 +8,7 @@ export const WORKERS: WorkerConfig[] = [
 		project: "spoolprices.com",
 		cron: "0 */2 * * *",
 		cronLabel: "Every 2h (price check) + Every 4h (discovery)",
-		position: { x: 150, y: 150 },
+		position: { x: 168, y: 186 },
 		personality: "Cheerful shop clerk with a barcode scanner. Always busy checking prices.",
 		activities: [
 			"Price check (every 2h): fetches stale listings, enqueues to check-queue",
@@ -39,7 +39,7 @@ export const WORKERS: WorkerConfig[] = [
 		project: "oncstrata",
 		cron: "0 */1 * * *",
 		cronLabel: "Every hour (2 of 18 indications per run)",
-		position: { x: 400, y: 250 },
+		position: { x: 508, y: 186 },
 		personality:
 			"Methodical scientist in a lab coat. Walks between stations for different sync tasks.",
 		activities: [
@@ -76,7 +76,7 @@ export const WORKERS: WorkerConfig[] = [
 		project: "nieltran.com",
 		cron: "0 3 * * *",
 		cronLabel: "Daily at 03:00 UTC",
-		position: { x: 660, y: 140 },
+		position: { x: 848, y: 186 },
 		personality:
 			"Quiet librarian with a magnifying glass. Activates once daily at 3am to sync provider data.",
 		activities: [
@@ -97,7 +97,7 @@ export const WORKERS: WorkerConfig[] = [
 		project: "nieltran.com",
 		cron: "0 */2 * * *",
 		cronLabel: "Every 2h (8 of 49 categories per batch)",
-		position: { x: 920, y: 270 },
+		position: { x: 338, y: 336 },
 		personality:
 			"Energetic courier carrying data packages between services. Batches 49 oncology categories.",
 		activities: [
@@ -119,7 +119,7 @@ export const WORKERS: WorkerConfig[] = [
 		project: "nieltran.com",
 		cron: "0 */6 * * *",
 		cronLabel: "4x per day",
-		position: { x: 1140, y: 190 },
+		position: { x: 678, y: 336 },
 		personality:
 			"Watchful detective with a notepad. Regularly checks for NCCN guideline updates.",
 		activities: [
