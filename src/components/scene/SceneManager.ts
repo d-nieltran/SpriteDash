@@ -54,6 +54,9 @@ export class SceneManager {
 		});
 
 		// World container with scaled logical coordinates
+		this.app.stage.eventMode = "static";
+		this.world.eventMode = "passive";
+		this.world.interactiveChildren = true;
 		this.app.stage.addChild(this.world);
 
 		// Add layers in z-order inside world

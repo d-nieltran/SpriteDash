@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Text, TextStyle, Ticker } from "pixi.js";
+import { Container, Graphics, Rectangle, Sprite, Text, TextStyle, Ticker } from "pixi.js";
 import type { InfraConfig, InfraType } from "@/lib/types";
 import {
 	loadTexture,
@@ -37,6 +37,7 @@ export class FurnitureSprite {
 		this.container.y = config.position.y;
 		this.container.eventMode = "static";
 		this.container.cursor = "pointer";
+		this.container.hitArea = new Rectangle(0, 0, DISPLAY_SIZE, DISPLAY_SIZE);
 
 		const shape = TYPE_SHAPES[config.type];
 
