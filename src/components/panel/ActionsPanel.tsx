@@ -9,7 +9,25 @@ export function ActionsPanel({ onDispatch, onChat }: ActionsPanelProps) {
 	const dispatchable = WORKERS.filter((w) => w.role !== "manager");
 
 	return (
-		<div className="actions-panel glass-strong">
+		<div
+			className="actions-panel glass-strong"
+			style={{
+				position: "fixed",
+				top: 56,
+				right: 12,
+				width: 180,
+				zIndex: 100,
+				background: "rgba(11, 13, 19, 0.92)",
+				borderRadius: 12,
+				padding: 12,
+				border: "1px solid rgba(255, 255, 255, 0.1)",
+				display: "flex",
+				flexDirection: "column" as const,
+				gap: 6,
+				pointerEvents: "auto" as const,
+				color: "white",
+			}}
+		>
 			<div className="actions-header">
 				<svg
 					viewBox="0 0 24 24"
