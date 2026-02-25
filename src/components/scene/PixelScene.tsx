@@ -11,9 +11,9 @@ import { DEFAULT_THEME } from "@/lib/theme-registry";
 import { useWorkerStatus } from "@/lib/status-fetcher";
 import type { SelectedEntity, WorkerStatus } from "@/lib/types";
 
-const WORKER_HIT_SIZE = 64; // Must match WorkerSprite DISPLAY_SIZE
-const INFRA_HIT_SIZE = 48; // Must match FurnitureSprite DISPLAY_SIZE
-const HIT_PADDING = 12; // Extra pixels around hit area for easier clicking
+const WORKER_HIT_SIZE = 64;
+const INFRA_HIT_SIZE = 48;
+const HIT_PADDING = 16;
 
 export default function PixelScene() {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,40 +24,23 @@ export default function PixelScene() {
 	const [selected, setSelected] = useState<SelectedEntity | null>(null);
 	const [loading, setLoading] = useState(true);
 	const statusData = useWorkerStatus();
+	const lastClickRef = useRef(0); // Prevent double-fire from redundant handlers
 
-	const handleSelect = useCallback((entity: SelectedEntity) => {
-		setSelected((prev) =>
-			prev?.type === entity.type && prev?.id === entity.id ? null : entity,
-		);
-	}, []);
-
-	// Click handler using React synthetic events on wrapper div
-	// Bypasses PixiJS v8 scaled container event bug entirely
-	const handleSceneClick = useCallback(
-		(e: React.MouseEvent<HTMLDivElement>) => {
-			const canvas = canvasRef.current;
-			const sc = sceneRef.current;
-			if (!canvas || !sc) return;
-
-			// Use getBoundingClientRect + clientX/Y for reliable CSS-pixel coordinates
-			const rect = canvas.getBoundingClientRect();
-			const screenX = e.clientX - rect.left;
-			const screenY = e.clientY - rect.top;
-			const world = sc.screenToWorld(screenX, screenY);
-
-			// Hit-test workers first (on top)
+	// Shared hit-test logic — takes world coordinates, returns matched entity
+	const hitTestWorld = useCallback(
+		(worldX: number, worldY: number): SelectedEntity | null => {
+			// Hit-test workers (on top layer)
 			for (const [id, sprite] of workersRef.current) {
 				const cx = sprite.container.x;
 				const cy = sprite.container.y;
 				if (
-					world.x >= cx - HIT_PADDING &&
-					world.x <= cx + WORKER_HIT_SIZE + HIT_PADDING &&
-					world.y >= cy - HIT_PADDING &&
-					world.y <= cy + WORKER_HIT_SIZE + HIT_PADDING
+					worldX >= cx - HIT_PADDING &&
+					worldX <= cx + WORKER_HIT_SIZE + HIT_PADDING &&
+					worldY >= cy - HIT_PADDING &&
+					worldY <= cy + WORKER_HIT_SIZE + HIT_PADDING
 				) {
 					sprite.showSpeechBubble();
-					handleSelect({ type: "worker", id });
-					return;
+					return { type: "worker", id };
 				}
 			}
 
@@ -66,18 +49,27 @@ export default function PixelScene() {
 				const cx = sprite.container.x;
 				const cy = sprite.container.y;
 				if (
-					world.x >= cx - HIT_PADDING &&
-					world.x <= cx + INFRA_HIT_SIZE + HIT_PADDING &&
-					world.y >= cy - HIT_PADDING &&
-					world.y <= cy + INFRA_HIT_SIZE + HIT_PADDING
+					worldX >= cx - HIT_PADDING &&
+					worldX <= cx + INFRA_HIT_SIZE + HIT_PADDING &&
+					worldY >= cy - HIT_PADDING &&
+					worldY <= cy + INFRA_HIT_SIZE + HIT_PADDING
 				) {
-					handleSelect({ type: "infra", id });
-					return;
+					return { type: "infra", id };
 				}
 			}
+			return null;
 		},
-		[handleSelect],
+		[],
 	);
+
+	const toggleSelect = useCallback((entity: SelectedEntity) => {
+		const now = Date.now();
+		if (now - lastClickRef.current < 100) return; // Debounce duplicate fires
+		lastClickRef.current = now;
+		setSelected((prev) =>
+			prev?.type === entity.type && prev?.id === entity.id ? null : entity,
+		);
+	}, []);
 
 	// Initialize PixiJS scene
 	useEffect(() => {
@@ -116,12 +108,52 @@ export default function PixelScene() {
 				x: i.position.x,
 				y: i.position.y,
 			}));
-			const connections = new ConnectionLines(workerPositions, infraPositions);
+			const connections = new ConnectionLines(
+				workerPositions,
+				infraPositions,
+			);
 			scene.connectionLayer.addChild(connections.container);
 			connectionsRef.current = connections;
 
+			// === CLICK APPROACH 1: PixiJS stage-level pointerdown ===
+			// Uses PixiJS's native coordinate conversion via getLocalPosition
+			scene.onStageClick((worldX, worldY) => {
+				const entity = hitTestWorld(worldX, worldY);
+				if (entity) toggleSelect(entity);
+			});
+
 			setLoading(false);
 		});
+
+		// === CLICK APPROACH 2: Window mousedown capture phase ===
+		// Fires before any library can intercept the event
+		const handleWindowMouseDown = (e: MouseEvent) => {
+			const sc = sceneRef.current;
+			if (!sc || !canvas) return;
+
+			const rect = canvas.getBoundingClientRect();
+			const screenX = e.clientX - rect.left;
+			const screenY = e.clientY - rect.top;
+
+			// Ignore clicks outside canvas
+			if (
+				screenX < 0 ||
+				screenX > rect.width ||
+				screenY < 0 ||
+				screenY > rect.height
+			)
+				return;
+
+			// Ignore clicks on overlays (HUD, detail panel)
+			const target = e.target as HTMLElement;
+			if (target.closest(".hud-bar") || target.closest(".detail-panel-overlay"))
+				return;
+
+			const world = sc.screenToWorld(screenX, screenY);
+			const entity = hitTestWorld(world.x, world.y);
+			if (entity) toggleSelect(entity);
+		};
+		window.addEventListener("mousedown", handleWindowMouseDown, true);
 
 		// Handle resize
 		const handleResize = () => {
@@ -130,6 +162,11 @@ export default function PixelScene() {
 		window.addEventListener("resize", handleResize);
 
 		return () => {
+			window.removeEventListener(
+				"mousedown",
+				handleWindowMouseDown,
+				true,
+			);
 			window.removeEventListener("resize", handleResize);
 			for (const sprite of workersRef.current.values()) sprite.destroy();
 			for (const sprite of infraRef.current.values()) sprite.destroy();
@@ -138,7 +175,7 @@ export default function PixelScene() {
 			workersRef.current.clear();
 			infraRef.current.clear();
 		};
-	}, []);
+	}, [hitTestWorld, toggleSelect]);
 
 	// Update sprites from status data
 	useEffect(() => {
@@ -151,12 +188,13 @@ export default function PixelScene() {
 			if (sprite && status) {
 				sprite.setStatus(status);
 
-				// When working: tell worker to walk between its connected infra
 				if (status === "working") {
 					const worker = WORKERS.find((w) => w.id === id);
 					if (worker) {
 						const positions = worker.connectedInfra
-							.map((infraId) => INFRA.find((i) => i.id === infraId))
+							.map((infraId) =>
+								INFRA.find((i) => i.id === infraId),
+							)
 							.filter(Boolean)
 							.map((i) => i!.position);
 						sprite.startWorking(positions);
@@ -166,7 +204,6 @@ export default function PixelScene() {
 						}
 					}
 				} else {
-					// Deactivate infra when not working
 					const worker = WORKERS.find((w) => w.id === id);
 					if (worker) {
 						for (const infraId of worker.connectedInfra) {
@@ -187,11 +224,12 @@ export default function PixelScene() {
 
 	return (
 		<div className="dashboard">
-			{/* biome-ignore lint: click handler for scene interaction */}
-			<div className="canvas-area" onClick={handleSceneClick}>
+			<div className="canvas-area">
 				{loading && (
 					<div className="loading-overlay">
-						<span className="loading-text">Initializing SpriteDash...</span>
+						<span className="loading-text">
+							Initializing SpriteDash...
+						</span>
 					</div>
 				)}
 				<canvas ref={canvasRef} />

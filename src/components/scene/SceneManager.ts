@@ -179,6 +179,24 @@ export class SceneManager {
 		}
 	}
 
+	/** Convert screen coordinates to world (logical scene) coordinates */
+	screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
+		const scale = this.world.scale.x;
+		return {
+			x: (screenX - this.world.x) / scale,
+			y: (screenY - this.world.y) / scale,
+		};
+	}
+
+	/** Register a click handler on the PixiJS stage (root level).
+	 *  Uses getLocalPosition to convert through the world transform. */
+	onStageClick(callback: (worldX: number, worldY: number) => void): void {
+		this.app.stage.on("pointerdown", (e) => {
+			const worldPos = e.getLocalPosition(this.world);
+			callback(worldPos.x, worldPos.y);
+		});
+	}
+
 	destroy(): void {
 		this.app.destroy(true);
 		this.initialized = false;
