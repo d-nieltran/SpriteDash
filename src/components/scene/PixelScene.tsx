@@ -51,6 +51,7 @@ export default function PixelScene() {
 					worldY >= cy - HIT_PADDING &&
 					worldY <= cy + INFRA_HIT_SIZE + HIT_PADDING
 				) {
+					sprite.pulse();
 					return { type: "infra", id };
 				}
 			}

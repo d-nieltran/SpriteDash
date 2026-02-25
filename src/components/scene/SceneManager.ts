@@ -75,6 +75,10 @@ export class SceneManager {
 		this.world.addChild(this.spriteLayer);
 		this.world.addChild(this.particleLayer);
 
+		// Enable Y-depth sorting (from pixel-agents pattern)
+		this.spriteLayer.sortableChildren = true;
+		this.furnitureLayer.sortableChildren = true;
+
 		this.fitToScreen();
 		this.initialized = true;
 	}

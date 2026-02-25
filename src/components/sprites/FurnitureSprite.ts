@@ -7,7 +7,8 @@ import {
 	isAnimatedFurniture,
 } from "@/lib/sprite-loader";
 
-const DISPLAY_SIZE = 48; // Smaller than workers
+const DISPLAY_SIZE = 48;
+const HOVER_LERP = 0.15;
 
 const TYPE_SHAPES: Record<InfraType, { icon: string; baseColor: number }> = {
 	d1: { icon: "DB", baseColor: 0x64748b },
@@ -30,6 +31,10 @@ export class FurnitureSprite {
 	private frameIndex = 0;
 	private ticker: Ticker | null = null;
 
+	// Smooth hover
+	private targetScale = 1;
+	private currentScale = 1;
+
 	constructor(config: InfraConfig) {
 		this.config = config;
 		this.container = new Container();
@@ -38,6 +43,9 @@ export class FurnitureSprite {
 		this.container.eventMode = "static";
 		this.container.cursor = "pointer";
 		this.container.hitArea = new Rectangle(0, 0, DISPLAY_SIZE, DISPLAY_SIZE);
+
+		// Z-index for depth sorting (bottom edge)
+		this.container.zIndex = config.position.y + DISPLAY_SIZE;
 
 		const shape = TYPE_SHAPES[config.type];
 
@@ -83,18 +91,31 @@ export class FurnitureSprite {
 		this.nameLabel.alpha = 0;
 		this.container.addChild(this.nameLabel);
 
-		// Hover
+		// Smooth hover events
 		this.container.on("pointerover", () => {
 			this.nameLabel.alpha = 1;
-			this.container.scale.set(1.05);
+			this.targetScale = 1.06;
 		});
 		this.container.on("pointerout", () => {
 			this.nameLabel.alpha = 0;
-			this.container.scale.set(1);
+			this.targetScale = 1;
 		});
+
+		// Start hover animation ticker
+		this.ticker = new Ticker();
+		this.ticker.add(() => this.animateHover());
+		this.ticker.start();
 
 		// Load sprite sheet async
 		this.loadSprite();
+	}
+
+	private animateHover(): void {
+		this.currentScale += (this.targetScale - this.currentScale) * HOVER_LERP;
+		if (Math.abs(this.currentScale - this.targetScale) < 0.001) {
+			this.currentScale = this.targetScale;
+		}
+		this.container.scale.set(this.currentScale);
 	}
 
 	private async loadSprite(): Promise<void> {
@@ -110,10 +131,8 @@ export class FurnitureSprite {
 			this.spriteDisplay.width = DISPLAY_SIZE;
 			this.spriteDisplay.height = DISPLAY_SIZE;
 
-			// Start animation ticker for animated furniture
-			this.ticker = new Ticker();
-			this.ticker.add(() => this.animateFrames());
-			this.ticker.start();
+			// Animate frames when active
+			this.ticker?.add(() => this.animateFrames());
 		} else {
 			const texture = await loadTexture(path);
 			if (!texture) return;
@@ -156,13 +175,20 @@ export class FurnitureSprite {
 			this.glowGraphics.stroke({ width: 2, color: 0x22c55e, alpha: 0.8 });
 		}
 
-		// For fallback mode, also redraw body with active indicator
 		if (this.fallbackBody) {
 			const shape = TYPE_SHAPES[this.config.type];
 			this.fallbackBody.clear();
 			this.fallbackBody.roundRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE, 6);
 			this.fallbackBody.fill(shape.baseColor);
 		}
+	}
+
+	/** Click pulse effect */
+	pulse(): void {
+		this.targetScale = 1.12;
+		setTimeout(() => {
+			this.targetScale = 1;
+		}, 150);
 	}
 
 	destroy(): void {

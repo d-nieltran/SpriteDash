@@ -17,16 +17,20 @@ import {
 
 const DISPLAY_SIZE = 64;
 const LABEL_OFFSET_Y = -10;
-const MOVE_SPEED = 1.5;
-const PAUSE_MIN = 80; // ticks at infra before moving on
+const MOVE_SPEED = 1.5; // Used to calculate movement duration
+const PAUSE_MIN = 80;
 const PAUSE_MAX = 140;
+const SITTING_OFFSET_Y = -8; // Visual offset when sitting at desk
+const HOVER_LERP = 0.15; // Smooth hover transition speed
 
 const SPEECH_LINES: Record<string, string[]> = {
-	idle: ["Waiting for work...", "Taking a break", "All caught up!", "☕ Coffee time"],
+	idle: ["Waiting for work...", "Taking a break", "All caught up!", "Coffee time"],
 	working: ["On it!", "Syncing data...", "Processing...", "Almost done!"],
 	error: ["Something broke!", "Need help here!", "Retrying...", "Ugh, errors!"],
-	celebrate: ["Done! 🎉", "Nailed it!", "Ship it!", "All green ✓"],
+	celebrate: ["Done!", "Nailed it!", "Ship it!", "All green"],
 };
+
+type WanderState = "sitting" | "pausing" | "wandering" | "returning";
 
 export class WorkerSprite {
 	container: Container;
@@ -37,19 +41,36 @@ export class WorkerSprite {
 	private statusDot: Graphics;
 	private currentStatus: WorkerStatus = "idle";
 	private homePosition: Position;
-	private moveTarget: Position | null = null;
 	private animationPhase = 0;
 	private frameIndex = 0;
 	private frameTick = 0;
 	private ticker: Ticker;
 	private frames: WorkerFrames | null = null;
 
-	// Behavior system
+	// Eased movement system
+	private moveTarget: Position | null = null;
+	private moveStartPos: Position | null = null;
+	private moveProgress = 0;
+	private moveDuration = 0;
+
+	// Working behavior
 	private infraPositions: Position[] = [];
 	private pauseTimer = 0;
 	private lastVisitedIndex = -1;
+
+	// Speech bubble
 	private speechBubble: Container | null = null;
 	private speechTimer = 0;
+
+	// Idle wander behavior (from pixel-agents pattern)
+	private wanderState: WanderState = "sitting";
+	private idleTimer = 300 + Math.random() * 600; // Initial 5-15s before first wander
+	private wanderCount = 0;
+	private maxWanders = 0;
+
+	// Smooth hover
+	private targetScale = 1;
+	private currentScale = 1;
 
 	constructor(config: WorkerConfig) {
 		this.config = config;
@@ -61,7 +82,10 @@ export class WorkerSprite {
 		this.container.cursor = "pointer";
 		this.container.hitArea = new Rectangle(0, 0, DISPLAY_SIZE, DISPLAY_SIZE);
 
-		// Start with fallback placeholder — sprite sheet loaded async
+		// Z-index for depth sorting (bottom edge of sprite)
+		this.container.zIndex = config.position.y + DISPLAY_SIZE;
+
+		// Fallback placeholder
 		this.fallbackBody = new Graphics();
 		this.drawFallbackBody();
 		this.container.addChild(this.fallbackBody);
@@ -90,14 +114,14 @@ export class WorkerSprite {
 		this.container.addChild(this.nameLabel);
 		this.container.addChild(this.statusDot);
 
-		// Hover events
+		// Smooth hover events (lerp instead of instant)
 		this.container.on("pointerover", () => {
 			this.nameLabel.alpha = 1;
-			this.container.scale.set(1.1);
+			this.targetScale = 1.08;
 		});
 		this.container.on("pointerout", () => {
 			this.nameLabel.alpha = 0;
-			this.container.scale.set(1);
+			this.targetScale = 1;
 		});
 
 		// Animation ticker
@@ -105,7 +129,6 @@ export class WorkerSprite {
 		this.ticker.add(() => this.animate());
 		this.ticker.start();
 
-		// Load sprite sheet async
 		this.loadSpriteSheet();
 	}
 
@@ -166,10 +189,25 @@ export class WorkerSprite {
 		}
 	}
 
+	/** Set a movement target with eased interpolation */
+	private setMoveTarget(target: Position): void {
+		this.moveStartPos = { x: this.container.x, y: this.container.y };
+		this.moveTarget = { ...target };
+		const dx = target.x - this.moveStartPos.x;
+		const dy = target.y - this.moveStartPos.y;
+		const dist = Math.sqrt(dx * dx + dy * dy);
+		this.moveDuration = Math.max(dist / MOVE_SPEED, 15); // Min 15 frames
+		this.moveProgress = 0;
+	}
+
+	/** Ease-in-out quadratic for smooth movement */
+	private easeInOut(t: number): number {
+		return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+	}
+
 	private pickNextInfra(): void {
 		if (this.infraPositions.length === 0) return;
 
-		// Pick a different infra than last visited
 		let idx: number;
 		if (this.infraPositions.length === 1) {
 			idx = 0;
@@ -180,12 +218,68 @@ export class WorkerSprite {
 		}
 		this.lastVisitedIndex = idx;
 
-		// Offset target so worker stands next to infra, not on top
 		const infra = this.infraPositions[idx];
-		this.moveTarget = {
+		this.setMoveTarget({
 			x: infra.x + (Math.random() > 0.5 ? -20 : 20),
 			y: infra.y - 16,
-		};
+		});
+	}
+
+	/** Idle wander AI — workers occasionally walk around near their desk */
+	private updateIdleWander(): void {
+		switch (this.wanderState) {
+			case "sitting":
+				this.idleTimer--;
+				if (this.idleTimer <= 0) {
+					this.wanderState = "pausing";
+					this.idleTimer = 60 + Math.random() * 120; // 1-3s pause before walking
+					this.maxWanders = 1 + Math.floor(Math.random() * 3);
+					this.wanderCount = 0;
+				}
+				break;
+
+			case "pausing":
+				this.idleTimer--;
+				if (this.idleTimer <= 0) {
+					// Pick random point near home
+					this.wanderState = "wandering";
+					const angle = Math.random() * Math.PI * 2;
+					const dist = 30 + Math.random() * 50;
+					this.setMoveTarget({
+						x: this.homePosition.x + Math.cos(angle) * dist,
+						y: Math.min(
+							Math.max(
+								this.homePosition.y + Math.sin(angle) * dist,
+								70,
+							),
+							410,
+						),
+					});
+				}
+				break;
+
+			case "wandering":
+				if (!this.moveTarget) {
+					// Arrived at wander point
+					this.wanderCount++;
+					if (this.wanderCount >= this.maxWanders) {
+						this.wanderState = "returning";
+						this.setMoveTarget({ ...this.homePosition });
+					} else {
+						this.wanderState = "pausing";
+						this.idleTimer = 90 + Math.random() * 180; // 1.5-4.5s pause
+					}
+				}
+				break;
+
+			case "returning":
+				if (!this.moveTarget) {
+					// Back at desk
+					this.wanderState = "sitting";
+					this.idleTimer = 600 + Math.random() * 1200; // 10-30s rest
+				}
+				break;
+		}
 	}
 
 	private animate(): void {
@@ -197,42 +291,59 @@ export class WorkerSprite {
 			if (this.frameTick >= this.getFramesPerTick()) {
 				this.frameTick = 0;
 				const statusFrames = this.frames[this.currentStatus];
-				this.frameIndex = (this.frameIndex + 1) % statusFrames.length;
-				this.spriteDisplay.texture = statusFrames[this.frameIndex];
+				if (statusFrames && statusFrames.length > 0) {
+					this.frameIndex = (this.frameIndex + 1) % statusFrames.length;
+					this.spriteDisplay.texture = statusFrames[this.frameIndex];
+				}
 			}
 		}
 
 		const visual = this.spriteDisplay ?? this.fallbackBody;
 		if (!visual) return;
 
-		// Status-based micro-animations (applied to the visual, not the container)
+		// Determine if sitting at desk
+		const isSitting =
+			this.currentStatus === "idle" &&
+			this.wanderState === "sitting" &&
+			!this.moveTarget;
+
+		// Status-based micro-animations
 		if (this.currentStatus === "working") {
 			visual.y = Math.sin(this.animationPhase * 3) * 2;
+			visual.x = 0;
 		} else if (this.currentStatus === "error") {
 			visual.x = Math.sin(this.animationPhase * 10) * 2;
+			visual.y = 0;
 		} else if (this.currentStatus === "celebrate") {
 			visual.y = -Math.abs(Math.sin(this.animationPhase * 4)) * 6;
+			visual.x = 0;
+		} else if (isSitting) {
+			// Sitting at desk: subtle breathing + sitting offset
+			visual.y = Math.sin(this.animationPhase) * 0.5 + SITTING_OFFSET_Y;
+			visual.x = 0;
 		} else {
-			// Idle: subtle breathing
-			visual.y = Math.sin(this.animationPhase) * 0.5;
+			// Standing/walking idle: walking bob
+			visual.y = Math.sin(this.animationPhase * 2) * 1;
 			visual.x = 0;
 		}
 
 		// Working behavior: walk between infrastructure
 		if (this.currentStatus === "working" && this.infraPositions.length > 0) {
 			if (this.pauseTimer > 0) {
-				// Paused at infra, "interacting"
 				this.pauseTimer--;
 			} else if (!this.moveTarget) {
-				// Done pausing, pick next infra to visit
 				this.pickNextInfra();
 			}
+		}
+
+		// Idle wander behavior
+		if (this.currentStatus === "idle") {
+			this.updateIdleWander();
 		}
 
 		// Speech bubble countdown
 		if (this.speechBubble && this.speechTimer > 0) {
 			this.speechTimer--;
-			// Fade out in the last 30 frames
 			if (this.speechTimer < 30) {
 				this.speechBubble.alpha = this.speechTimer / 30;
 			}
@@ -243,26 +354,43 @@ export class WorkerSprite {
 			}
 		}
 
-		// Linear movement towards target
-		if (this.moveTarget) {
-			const dx = this.moveTarget.x - this.container.x;
-			const dy = this.moveTarget.y - this.container.y;
-			const dist = Math.sqrt(dx * dx + dy * dy);
+		// Eased movement toward target
+		if (this.moveTarget && this.moveStartPos) {
+			this.moveProgress += 1 / this.moveDuration;
 
-			if (dist < MOVE_SPEED) {
+			if (this.moveProgress >= 1) {
 				this.container.x = this.moveTarget.x;
 				this.container.y = this.moveTarget.y;
+				const arrivedTarget = this.moveTarget;
 				this.moveTarget = null;
-				// Arrived: start pause timer if working
+				this.moveStartPos = null;
+
+				// Handle arrival
 				if (this.currentStatus === "working") {
 					this.pauseTimer =
-						PAUSE_MIN + Math.floor(Math.random() * (PAUSE_MAX - PAUSE_MIN));
+						PAUSE_MIN +
+						Math.floor(Math.random() * (PAUSE_MAX - PAUSE_MIN));
 				}
 			} else {
-				this.container.x += (dx / dist) * MOVE_SPEED;
-				this.container.y += (dy / dist) * MOVE_SPEED;
+				const eased = this.easeInOut(this.moveProgress);
+				this.container.x =
+					this.moveStartPos.x +
+					(this.moveTarget.x - this.moveStartPos.x) * eased;
+				this.container.y =
+					this.moveStartPos.y +
+					(this.moveTarget.y - this.moveStartPos.y) * eased;
 			}
 		}
+
+		// Update z-index for depth sorting (bottom edge of sprite)
+		this.container.zIndex = this.container.y + DISPLAY_SIZE;
+
+		// Smooth hover scale (lerp toward target)
+		this.currentScale += (this.targetScale - this.currentScale) * HOVER_LERP;
+		if (Math.abs(this.currentScale - this.targetScale) < 0.001) {
+			this.currentScale = this.targetScale;
+		}
+		this.container.scale.set(this.currentScale);
 	}
 
 	/** Start walking between connected infrastructure */
@@ -270,12 +398,16 @@ export class WorkerSprite {
 		this.infraPositions = infraPositions;
 		this.lastVisitedIndex = -1;
 		this.pauseTimer = 0;
+		// Reset wander state
+		this.wanderState = "sitting";
 		this.pickNextInfra();
 	}
 
-	/** Stop moving and freeze at current position */
+	/** Stop moving and freeze */
 	stopMoving(): void {
 		this.moveTarget = null;
+		this.moveStartPos = null;
+		this.moveProgress = 0;
 		this.infraPositions = [];
 		this.pauseTimer = 0;
 	}
@@ -303,12 +435,14 @@ export class WorkerSprite {
 			this.currentStatus = "celebrate";
 			this.frameIndex = 0;
 			this.drawStatusDot();
-			// Return home while celebrating
-			this.moveTarget = { ...this.homePosition };
+			this.setMoveTarget({ ...this.homePosition });
 			setTimeout(() => {
 				this.currentStatus = "idle";
 				this.frameIndex = 0;
 				this.drawStatusDot();
+				// Reset wander timer
+				this.wanderState = "sitting";
+				this.idleTimer = 300 + Math.random() * 600;
 			}, 1200);
 			return;
 		}
@@ -316,21 +450,23 @@ export class WorkerSprite {
 		// Error: stop where you are
 		if (status === "error") {
 			this.stopMoving();
+			this.wanderState = "sitting";
 			return;
 		}
 
-		// Idle: return home
+		// Idle: return home and reset wander
 		if (status === "idle") {
 			this.stopMoving();
-			this.moveTarget = { ...this.homePosition };
+			this.setMoveTarget({ ...this.homePosition });
+			this.wanderState = "returning";
 		}
 	}
 
 	returnHome(): void {
-		this.moveTarget = { ...this.homePosition };
+		this.setMoveTarget({ ...this.homePosition });
 	}
 
-	/** Show a context-aware speech bubble above the worker */
+	/** Show a context-aware speech bubble + click pulse */
 	showSpeechBubble(): void {
 		// Clear existing bubble
 		if (this.speechBubble) {
@@ -338,6 +474,12 @@ export class WorkerSprite {
 			this.speechBubble.destroy({ children: true });
 			this.speechBubble = null;
 		}
+
+		// Click pulse effect
+		this.targetScale = 1.15;
+		setTimeout(() => {
+			this.targetScale = 1;
+		}, 150);
 
 		const lines = SPEECH_LINES[this.currentStatus] ?? SPEECH_LINES.idle;
 		const line = lines[Math.floor(Math.random() * lines.length)];
@@ -357,11 +499,17 @@ export class WorkerSprite {
 		const padX = 8;
 		const padY = 4;
 		const bg = new Graphics();
-		bg.roundRect(0, 0, text.width + padX * 2, text.height + padY * 2, 6);
-		bg.fill(0xffffff);
-		// Small triangle pointer
-		const cx = (text.width + padX * 2) / 2;
+		const bw = text.width + padX * 2;
 		const bh = text.height + padY * 2;
+
+		// Bubble shadow
+		bg.roundRect(1, 1, bw, bh, 6);
+		bg.fill({ color: 0x000000, alpha: 0.2 });
+		// Bubble body
+		bg.roundRect(0, 0, bw, bh, 6);
+		bg.fill(0xffffff);
+		// Triangle pointer
+		const cx = bw / 2;
 		bg.moveTo(cx - 4, bh);
 		bg.lineTo(cx, bh + 5);
 		bg.lineTo(cx + 4, bh);
@@ -373,13 +521,13 @@ export class WorkerSprite {
 		bubble.addChild(bg);
 		bubble.addChild(text);
 
-		// Position above the sprite
-		bubble.x = DISPLAY_SIZE / 2 - (text.width + padX * 2) / 2;
-		bubble.y = -(text.height + padY * 2 + 10);
+		// Position above sprite
+		bubble.x = DISPLAY_SIZE / 2 - bw / 2;
+		bubble.y = -(bh + 12);
 
 		this.container.addChild(bubble);
 		this.speechBubble = bubble;
-		this.speechTimer = 180; // ~3 seconds at 60fps
+		this.speechTimer = 180;
 	}
 
 	destroy(): void {
