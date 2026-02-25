@@ -5,11 +5,9 @@ import type {
 	WorkerAnalytics,
 	SelectedEntity,
 } from "@/lib/types";
-import { getWorker } from "@/lib/worker-registry";
+import { getWorker, WORKERS } from "@/lib/worker-registry";
 import { getInfra } from "@/lib/infra-registry";
 import { getNextRun, formatTimeUntil } from "@/lib/cron-parser";
-import { WORKERS } from "@/lib/worker-registry";
-import { INFRA } from "@/lib/infra-registry";
 
 interface DetailPanelProps {
 	entity: SelectedEntity;
@@ -48,41 +46,34 @@ function WorkerPanel({
 	const selfReport = status?.selfReport;
 	const analytics = status?.analytics;
 	const nextRun = getNextRun(config.cron);
-	const statusColor = selfReport?.status === "working"
-		? "text-green-400"
-		: selfReport?.status === "error"
-			? "text-red-400"
-			: "text-slate-400";
+	const statusKey = selfReport?.status ?? "unknown";
 
 	return (
-		<div className="detail-panel absolute right-0 top-0 h-full w-80 bg-[#0f1117] border-l border-[#38394b] overflow-y-auto text-white p-4 font-mono text-sm">
-			<button
-				type="button"
-				onClick={onClose}
-				className="absolute top-3 right-3 text-slate-500 hover:text-white text-lg"
-			>
-				x
+		<div className="detail-panel-overlay glass-strong">
+			<button type="button" onClick={onClose} className="detail-close">
+				&times;
 			</button>
 
-			<div className="flex items-center gap-3 mb-4">
-				<div
-					className="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-bold"
-					style={{ backgroundColor: config.color }}
-				>
-					{config.character[4]}
+			<div className="detail-header">
+				<div className="detail-avatar" style={{ backgroundColor: config.color }}>
+					{config.character.charAt(4)}
 				</div>
 				<div>
-					<h2 className="text-base font-bold">{config.name}</h2>
-					<p className="text-xs text-slate-400">{config.character}</p>
+					<div className="detail-name">{config.name}</div>
+					<div className="detail-subtitle">{config.character} &middot; {config.project}</div>
 				</div>
 			</div>
 
-			<p className="text-xs text-slate-500 mb-4 italic">{config.personality}</p>
+			<div style={{ marginBottom: 12 }}>
+				<span className={`detail-tag status-${statusKey}`}>
+					<span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor", display: "inline-block" }} />
+					{statusKey}
+				</span>
+			</div>
+
+			<div className="detail-personality">{config.personality}</div>
 
 			<Section title="Status">
-				<p className={statusColor}>
-					{selfReport?.status ?? "unknown"}
-				</p>
 				{selfReport && (
 					<>
 						<Row label="Last run" value={formatTime(selfReport.lastRun)} />
@@ -105,18 +96,14 @@ function WorkerPanel({
 			{selfReport?.activity && selfReport.activity.length > 0 && (
 				<Section title="Recent Activity">
 					{selfReport.activity.map((a) => (
-						<p key={a} className="text-xs text-slate-300 mb-1">
-							{a}
-						</p>
+						<div key={a} className="detail-list-item">{a}</div>
 					))}
 				</Section>
 			)}
 
 			<Section title="Activities">
 				{config.activities.map((a) => (
-					<p key={a} className="text-xs text-slate-400 mb-1">
-						{a}
-					</p>
+					<div key={a} className="detail-list-item">{a}</div>
 				))}
 			</Section>
 
@@ -124,18 +111,19 @@ function WorkerPanel({
 				{config.connectedInfra.map((id) => {
 					const infra = getInfra(id);
 					return (
-						<p key={id} className="text-xs text-slate-300 mb-1">
-							[{infra?.type.toUpperCase()}] {infra?.name}
-						</p>
+						<div key={id} className="detail-list-item">
+							<span style={{ color: "rgba(255,255,255,0.25)", marginRight: 4 }}>
+								[{infra?.type.toUpperCase()}]
+							</span>
+							{infra?.name}
+						</div>
 					);
 				})}
 			</Section>
 
 			<Section title="External APIs">
 				{config.externalApis.map((api) => (
-					<p key={api} className="text-xs text-slate-300 mb-1">
-						{api}
-					</p>
+					<div key={api} className="detail-list-item">{api}</div>
 				))}
 			</Section>
 		</div>
@@ -151,51 +139,43 @@ function InfraPanel({
 	);
 
 	return (
-		<div className="detail-panel absolute right-0 top-0 h-full w-80 bg-[#0f1117] border-l border-[#38394b] overflow-y-auto text-white p-4 font-mono text-sm">
-			<button
-				type="button"
-				onClick={onClose}
-				className="absolute top-3 right-3 text-slate-500 hover:text-white text-lg"
-			>
-				x
+		<div className="detail-panel-overlay glass-strong">
+			<button type="button" onClick={onClose} className="detail-close">
+				&times;
 			</button>
 
-			<div className="flex items-center gap-3 mb-4">
-				<div className="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-bold bg-slate-700">
+			<div className="detail-header">
+				<div className="detail-avatar" style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
 					{config.type.toUpperCase()}
 				</div>
 				<div>
-					<h2 className="text-base font-bold">{config.name}</h2>
-					<p className="text-xs text-slate-400">{config.project}</p>
+					<div className="detail-name">{config.name}</div>
+					<div className="detail-subtitle">{config.project}</div>
 				</div>
 			</div>
 
 			<Section title="Details">
 				<Row label="Type" value={config.type.toUpperCase()} />
 				<Row label="Size" value={config.size} />
-				<p className="text-xs text-slate-400 mt-2">{config.detail}</p>
+				<div className="detail-list-item" style={{ marginTop: 6 }}>{config.detail}</div>
 			</Section>
 
 			<Section title="Used By">
 				{connectedWorkers.map((w) => (
-					<p key={w.id} className="text-xs text-slate-300 mb-1">
+					<div key={w.id} className="detail-list-item">
+						<span style={{ color: w.color, marginRight: 4 }}>&bull;</span>
 						{w.character} ({w.name})
-					</p>
+					</div>
 				))}
 			</Section>
 		</div>
 	);
 }
 
-function Section({
-	title,
-	children,
-}: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
 	return (
-		<div className="mb-4">
-			<h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-[#38394b] pb-1">
-				{title}
-			</h3>
+		<div className="detail-section">
+			<div className="detail-section-title">{title}</div>
 			{children}
 		</div>
 	);
@@ -203,9 +183,9 @@ function Section({
 
 function Row({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="flex justify-between text-xs mb-1">
-			<span className="text-slate-500">{label}</span>
-			<span className="text-slate-200">{value}</span>
+		<div className="detail-row">
+			<span className="detail-row-label">{label}</span>
+			<span className="detail-row-value">{value}</span>
 		</div>
 	);
 }

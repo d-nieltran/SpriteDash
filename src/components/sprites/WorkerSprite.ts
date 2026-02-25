@@ -14,7 +14,7 @@ import {
 	type WorkerFrames,
 } from "@/lib/sprite-loader";
 
-const DISPLAY_SIZE = 64; // 32px base × 2x scale
+const DISPLAY_SIZE = 96; // Larger display for visibility
 const LABEL_OFFSET_Y = -14;
 const MOVE_SPEED = 2;
 

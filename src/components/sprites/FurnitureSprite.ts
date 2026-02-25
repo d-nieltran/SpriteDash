@@ -7,7 +7,7 @@ import {
 	isAnimatedFurniture,
 } from "@/lib/sprite-loader";
 
-const DISPLAY_SIZE = 64; // 32px base × 2x
+const DISPLAY_SIZE = 72; // Slightly smaller than workers
 
 const TYPE_SHAPES: Record<InfraType, { icon: string; baseColor: number }> = {
 	d1: { icon: "DB", baseColor: 0x64748b },

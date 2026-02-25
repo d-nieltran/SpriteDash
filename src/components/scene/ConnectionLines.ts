@@ -1,8 +1,8 @@
 import { Graphics, Container } from "pixi.js";
 import type { WorkerConfig, InfraConfig, WorkerStatus } from "@/lib/types";
 
-const SPRITE_CENTER = 32; // half of 64px display size
-const INFRA_CENTER = 32; // half of 64px display size
+const SPRITE_CENTER = 48; // half of 96px worker display size
+const INFRA_CENTER = 36; // half of 72px infra display size
 
 interface Connection {
 	workerId: string;
@@ -19,7 +19,7 @@ export class ConnectionLines {
 		infra: { config: InfraConfig; x: number; y: number }[],
 	) {
 		this.container = new Container();
-		this.container.alpha = 0.3;
+		this.container.alpha = 0.15;
 
 		const infraMap = new Map(infra.map((i) => [i.config.id, i]));
 
@@ -76,7 +76,7 @@ export class ConnectionLines {
 	setWorkerActive(workerId: string, status: WorkerStatus): void {
 		for (const conn of this.connections) {
 			if (conn.workerId === workerId) {
-				conn.line.alpha = status === "working" ? 3 : 1;
+				conn.line.alpha = status === "working" ? 4 : 1;
 			}
 		}
 	}

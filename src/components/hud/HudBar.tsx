@@ -2,12 +2,6 @@ import { useEffect, useState } from "react";
 import { WORKERS } from "@/lib/worker-registry";
 import { getNextRun, formatTimeUntil } from "@/lib/cron-parser";
 
-const STATUS_COLORS: Record<string, string> = {
-	idle: "bg-slate-400",
-	working: "bg-green-400",
-	error: "bg-red-400",
-};
-
 export function HudBar() {
 	const [time, setTime] = useState(new Date());
 
@@ -19,38 +13,53 @@ export function HudBar() {
 	const nextEvent = getNextEvent(time);
 
 	return (
-		<div className="absolute top-0 left-0 right-0 h-[60px] bg-[#0f1117]/90 border-b border-[#38394b] flex items-center justify-between px-6 font-mono text-xs text-white z-10">
-			<div className="flex items-center gap-6">
-				<span className="text-slate-400">
+		<div className="hud-bar glass">
+			<div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+				<div className="hud-title">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#a78bfa" }}>
+						<rect x="2" y="3" width="20" height="14" rx="2" />
+						<path d="M8 21h8" />
+						<path d="M12 17v4" />
+						<circle cx="8" cy="10" r="1.5" fill="currentColor" stroke="none" />
+						<circle cx="16" cy="10" r="1.5" fill="currentColor" stroke="none" />
+					</svg>
+					<span style={{ color: "rgba(255,255,255,0.85)" }}>SpriteDash</span>
+				</div>
+
+				<div className="hud-clock">
 					{time.toLocaleTimeString("en-US", {
 						hour: "2-digit",
 						minute: "2-digit",
 						second: "2-digit",
 						timeZone: "UTC",
 					})}{" "}
-					UTC
-				</span>
+					<span style={{ opacity: 0.5 }}>UTC</span>
+				</div>
 
 				{nextEvent && (
-					<span className="text-slate-300">
+					<div className="hud-next">
 						Next:{" "}
-						<span style={{ color: nextEvent.color }}>
+						<strong style={{ color: nextEvent.color }}>
 							{nextEvent.name}
-						</span>{" "}
+						</strong>{" "}
 						in {nextEvent.timeUntil}
-					</span>
+					</div>
 				)}
 			</div>
 
-			<div className="flex items-center gap-4">
-				{Object.entries(STATUS_COLORS).map(([status, bg]) => (
-					<div key={status} className="flex items-center gap-1.5">
-						<div className={`w-2 h-2 rounded-full ${bg}`} />
-						<span className="text-slate-500 capitalize">{status}</span>
-					</div>
-				))}
-
-				<span className="text-slate-600 ml-2">SpriteDash</span>
+			<div className="hud-legend">
+				<div className="hud-legend-item">
+					<div className="hud-legend-dot" style={{ background: "#94a3b8" }} />
+					idle
+				</div>
+				<div className="hud-legend-item">
+					<div className="hud-legend-dot" style={{ background: "#22c55e" }} />
+					working
+				</div>
+				<div className="hud-legend-item">
+					<div className="hud-legend-dot" style={{ background: "#ef4444" }} />
+					error
+				</div>
 			</div>
 		</div>
 	);

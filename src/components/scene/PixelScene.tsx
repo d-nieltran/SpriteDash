@@ -8,7 +8,6 @@ import { HudBar } from "../hud/HudBar";
 import { WORKERS } from "@/lib/worker-registry";
 import { INFRA } from "@/lib/infra-registry";
 import { DEFAULT_THEME } from "@/lib/theme-registry";
-import { SCENE_WIDTH, SCENE_HEIGHT } from "@/lib/scene-layout";
 import { useWorkerStatus } from "@/lib/status-fetcher";
 import type { SelectedEntity, WorkerStatus } from "@/lib/types";
 
@@ -19,7 +18,6 @@ export default function PixelScene() {
 	const infraRef = useRef<Map<string, FurnitureSprite>>(new Map());
 	const connectionsRef = useRef<ConnectionLines | null>(null);
 	const [selected, setSelected] = useState<SelectedEntity | null>(null);
-	const [scale, setScale] = useState(1);
 	const [loading, setLoading] = useState(true);
 	const statusData = useWorkerStatus();
 
@@ -38,13 +36,10 @@ export default function PixelScene() {
 		sceneRef.current = scene;
 
 		scene.init(canvas).then(async () => {
-			// Draw floor (async — loads tile textures)
 			await scene.drawFloor(DEFAULT_THEME);
-
-			// Load decorations (async — loads decor sprite textures)
 			await scene.loadDecorations();
 
-			// Create worker sprites (each loads its own sprite sheet async)
+			// Create worker sprites
 			for (const config of WORKERS) {
 				const sprite = new WorkerSprite(config);
 				sprite.onClick(() =>
@@ -54,7 +49,7 @@ export default function PixelScene() {
 				workersRef.current.set(config.id, sprite);
 			}
 
-			// Create infrastructure sprites (each loads its own sprite async)
+			// Create infrastructure sprites
 			for (const config of INFRA) {
 				const sprite = new FurnitureSprite(config);
 				sprite.onClick(() =>
@@ -64,7 +59,7 @@ export default function PixelScene() {
 				infraRef.current.set(config.id, sprite);
 			}
 
-			// Create connection lines
+			// Connection lines
 			const workerPositions = WORKERS.map((w) => ({
 				config: w,
 				x: w.position.x,
@@ -75,17 +70,21 @@ export default function PixelScene() {
 				x: i.position.x,
 				y: i.position.y,
 			}));
-			const connections = new ConnectionLines(
-				workerPositions,
-				infraPositions,
-			);
+			const connections = new ConnectionLines(workerPositions, infraPositions);
 			scene.connectionLayer.addChild(connections.container);
 			connectionsRef.current = connections;
 
 			setLoading(false);
 		});
 
+		// Handle resize
+		const handleResize = () => {
+			sceneRef.current?.fitToScreen();
+		};
+		window.addEventListener("resize", handleResize);
+
 		return () => {
+			window.removeEventListener("resize", handleResize);
 			for (const sprite of workersRef.current.values()) sprite.destroy();
 			for (const sprite of infraRef.current.values()) sprite.destroy();
 			connectionsRef.current?.destroy();
@@ -105,7 +104,6 @@ export default function PixelScene() {
 				sprite.setStatus(data.selfReport.status as WorkerStatus);
 			}
 
-			// Update connection line activity
 			if (data.selfReport) {
 				connectionsRef.current?.setWorkerActive(
 					id,
@@ -113,7 +111,6 @@ export default function PixelScene() {
 				);
 			}
 
-			// Activate furniture when worker is working
 			if (data.selfReport?.status === "working") {
 				const worker = WORKERS.find((w) => w.id === id);
 				if (worker) {
@@ -125,56 +122,26 @@ export default function PixelScene() {
 		}
 	}, [statusData]);
 
-	// Responsive scaling
-	useEffect(() => {
-		const handleResize = () => {
-			const s = Math.min(
-				1,
-				window.innerWidth / SCENE_WIDTH,
-				window.innerHeight / SCENE_HEIGHT,
-			);
-			setScale(s);
-		};
-		handleResize();
-		window.addEventListener("resize", handleResize);
-		return () => window.removeEventListener("resize", handleResize);
-	}, []);
-
 	return (
-		<div className="scene-wrapper">
-			<div
-				className="scene-container"
-				style={{ transform: `scale(${scale})` }}
-			>
-				<HudBar />
-				<div style={{ position: "relative" }}>
-					{loading && (
-						<div
-							style={{
-								position: "absolute",
-								inset: 0,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								zIndex: 10,
-								color: "#94a3b8",
-								fontFamily: "Courier New",
-								fontSize: 14,
-							}}
-						>
-							Loading sprites...
-						</div>
-					)}
-					<canvas ref={canvasRef} />
-				</div>
-				{selected && (
-					<DetailPanel
-						entity={selected}
-						statusData={statusData?.workers ?? {}}
-						onClose={() => setSelected(null)}
-					/>
+		<div className="dashboard">
+			<div className="canvas-area">
+				{loading && (
+					<div className="loading-overlay">
+						<span className="loading-text">Initializing SpriteDash...</span>
+					</div>
 				)}
+				<canvas ref={canvasRef} />
 			</div>
+
+			<HudBar />
+
+			{selected && (
+				<DetailPanel
+					entity={selected}
+					statusData={statusData?.workers ?? {}}
+					onClose={() => setSelected(null)}
+				/>
+			)}
 		</div>
 	);
 }
