@@ -68,16 +68,8 @@ export interface SelectedEntity {
 export interface Theme {
 	id: string;
 	name: string;
-	floorColors: {
-		spoolprices: string;
-		oncstrata: string;
-		nieltran: string;
-	};
-	floorTiles: {
-		spoolprices: string;
-		oncstrata: string;
-		nieltran: string;
-	};
+	floorColor: string;
+	floorTile: string;
 	wallBase: string;
 	spriteSheetPrefix: string;
 }

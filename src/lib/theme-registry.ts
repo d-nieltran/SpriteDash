@@ -4,16 +4,8 @@ export const THEMES: Theme[] = [
 	{
 		id: "office",
 		name: "Office / Lab",
-		floorColors: {
-			spoolprices: "#1a1410",
-			oncstrata: "#141820",
-			nieltran: "#18141e",
-		},
-		floorTiles: {
-			spoolprices: "/sprites/floor/wood-tile.png",
-			oncstrata: "/sprites/floor/lab-tile.png",
-			nieltran: "/sprites/floor/carpet-tile.png",
-		},
+		floorColor: "#141820",
+		floorTile: "/sprites/floor/lab-tile.png",
 		wallBase: "/sprites/floor/wall-base.png",
 		spriteSheetPrefix: "themes/office",
 	},

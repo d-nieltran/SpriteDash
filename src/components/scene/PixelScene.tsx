@@ -13,7 +13,7 @@ import type { SelectedEntity, WorkerStatus } from "@/lib/types";
 
 const WORKER_HIT_SIZE = 64;
 const INFRA_HIT_SIZE = 48;
-const HIT_PADDING = 16;
+const HIT_PADDING = 24;
 
 export default function PixelScene() {
 	const canvasRef = useRef<HTMLCanvasElement>(null);

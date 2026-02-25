@@ -9,7 +9,7 @@ import {
 import {
 	SCENE_WIDTH,
 	SCENE_HEIGHT,
-	ZONES,
+	ROOM,
 	DECORATIONS,
 } from "@/lib/scene-layout";
 import type { Theme } from "@/lib/types";
@@ -92,74 +92,62 @@ export class SceneManager {
 	async drawFloor(theme: Theme): Promise<void> {
 		this.floorLayer.removeChildren();
 
-		for (const zone of ZONES) {
-			// Gradient-style floor: solid color with subtle variation
-			const floor = new Graphics();
-			const color = theme.floorColors[zone.id as keyof typeof theme.floorColors];
-			const hex = Number.parseInt(color.replace("#", ""), 16);
+		// Single unified floor
+		const floor = new Graphics();
+		const hex = Number.parseInt(theme.floorColor.replace("#", ""), 16);
+		floor.rect(0, 0, SCENE_WIDTH, SCENE_HEIGHT);
+		floor.fill(hex);
+		this.floorLayer.addChild(floor);
 
-			// Main floor
-			floor.rect(zone.x, zone.y, zone.width, zone.height);
-			floor.fill(hex);
+		// Subtle wall strip at top
+		const wallStrip = new Graphics();
+		wallStrip.rect(0, 0, SCENE_WIDTH, 40);
+		wallStrip.fill({ color: 0xffffff, alpha: 0.03 });
+		this.floorLayer.addChild(wallStrip);
 
-			// Subtle lighter strip at top (wall area feel)
-			const wallStrip = new Graphics();
-			wallStrip.rect(zone.x, zone.y, zone.width, 40);
-			wallStrip.fill({ color: 0xffffff, alpha: 0.03 });
+		// Subtle server room area at bottom
+		const serverArea = new Graphics();
+		serverArea.rect(0, 500, SCENE_WIDTH, 220);
+		serverArea.fill({ color: 0x000000, alpha: 0.08 });
+		this.floorLayer.addChild(serverArea);
 
-			this.floorLayer.addChild(floor);
-			this.floorLayer.addChild(wallStrip);
-
-			// Try tiled floor overlay if texture exists
-			const tilePath = theme.floorTiles[zone.id as keyof typeof theme.floorTiles];
-			const tileTexture = tilePath ? await loadTexture(tilePath) : null;
-			if (tileTexture) {
-				const tilingSprite = new TilingSprite({
-					texture: tileTexture,
-					width: zone.width,
-					height: zone.height,
-				});
-				tilingSprite.x = zone.x;
-				tilingSprite.y = zone.y;
-				// Very subtle repeating texture overlay
-				tilingSprite.tileScale.set(0.03);
-				tilingSprite.alpha = 0.035;
-				this.floorLayer.addChild(tilingSprite);
-			}
-
-			// Zone label — styled badge
-			const labelBg = new Graphics();
-			const labelText = new Text({
-				text: zone.label,
-				style: new TextStyle({
-					fontFamily: "Inter, SF Pro Display, sans-serif",
-					fontSize: 11,
-					fill: 0xffffff,
-					fontWeight: "600",
-					letterSpacing: 0.8,
-				}),
+		// Tiled floor overlay
+		const tileTexture = theme.floorTile
+			? await loadTexture(theme.floorTile)
+			: null;
+		if (tileTexture) {
+			const tilingSprite = new TilingSprite({
+				texture: tileTexture,
+				width: SCENE_WIDTH,
+				height: SCENE_HEIGHT,
 			});
-			const padding = 8;
-			const labelW = labelText.width + padding * 2;
-			const labelH = 22;
-			labelBg.roundRect(zone.x + 12, zone.y + 10, labelW, labelH, 4);
-			labelBg.fill({ color: 0x000000, alpha: 0.3 });
-			labelText.x = zone.x + 12 + padding;
-			labelText.y = zone.y + 10 + 4;
-			labelText.alpha = 0.7;
-
-			this.floorLayer.addChild(labelBg);
-			this.floorLayer.addChild(labelText);
+			tilingSprite.tileScale.set(0.03);
+			tilingSprite.alpha = 0.035;
+			this.floorLayer.addChild(tilingSprite);
 		}
 
-		// Zone dividers — subtle gradient lines
-		for (let i = 1; i < ZONES.length; i++) {
-			const zone = ZONES[i];
-			const divider = new Graphics();
-			divider.rect(zone.x - 1, zone.y, 2, zone.height);
-			divider.fill({ color: 0xffffff, alpha: 0.04 });
-			this.floorLayer.addChild(divider);
-		}
+		// Room label badge
+		const labelBg = new Graphics();
+		const labelText = new Text({
+			text: ROOM.label,
+			style: new TextStyle({
+				fontFamily: "Inter, SF Pro Display, sans-serif",
+				fontSize: 11,
+				fill: 0xffffff,
+				fontWeight: "600",
+				letterSpacing: 0.8,
+			}),
+		});
+		const padding = 8;
+		const labelW = labelText.width + padding * 2;
+		const labelH = 22;
+		labelBg.roundRect(12, 10, labelW, labelH, 4);
+		labelBg.fill({ color: 0x000000, alpha: 0.3 });
+		labelText.x = 12 + padding;
+		labelText.y = 10 + 4;
+		labelText.alpha = 0.7;
+		this.floorLayer.addChild(labelBg);
+		this.floorLayer.addChild(labelText);
 	}
 
 	async loadDecorations(): Promise<void> {
