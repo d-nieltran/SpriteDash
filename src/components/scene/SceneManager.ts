@@ -342,7 +342,7 @@ export class SceneManager {
 		const wallDecor = new Graphics();
 
 		// Bookshelves
-		drawBookshelf(wallDecor, 30, 0, 50, 58);
+		drawBookshelf(wallDecor, 100, 0, 50, 58);
 		drawBookshelf(wallDecor, 770, 0, 50, 58);
 		drawBookshelf(wallDecor, 1190, 0, 50, 58);
 
@@ -351,8 +351,7 @@ export class SceneManager {
 		drawWindow(wallDecor, 600, 6, 70, 46);
 		drawWindow(wallDecor, 920, 6, 70, 46);
 
-		// Whiteboard
-		drawWhiteboard(wallDecor, 340, 4, 90, 50);
+		// Whiteboard — now replaced by live Scoreboard (added in PixelScene)
 
 		// Clock
 		drawClock(wallDecor, 510, 30, 14);

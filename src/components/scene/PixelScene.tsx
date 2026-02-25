@@ -4,8 +4,10 @@ import { WorkerSprite } from "../sprites/WorkerSprite";
 import { FurnitureSprite } from "../sprites/FurnitureSprite";
 import { ConnectionLines } from "./ConnectionLines";
 import { InteractionManager } from "./InteractionManager";
+import { Scoreboard } from "./Scoreboard";
 import { DetailPanel } from "../panel/DetailPanel";
 import { ActionsPanel } from "../panel/ActionsPanel";
+import { ActivityFeed, type ActivityEvent } from "../panel/ActivityFeed";
 import { HudBar } from "../hud/HudBar";
 import { WORKERS } from "@/lib/worker-registry";
 import { INFRA } from "@/lib/infra-registry";
@@ -16,6 +18,10 @@ import type { SelectedEntity, WorkerStatus } from "@/lib/types";
 const WORKER_HIT_SIZE = 64;
 const INFRA_HIT_SIZE = 48;
 const HIT_PADDING = 24;
+const DOUBLE_CLICK_MS = 400;
+
+// Dispatch order: workers that aren't the manager
+const DISPATCHABLE = WORKERS.filter((w) => w.role !== "manager");
 
 export default function PixelScene() {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,10 +30,21 @@ export default function PixelScene() {
 	const infraRef = useRef<Map<string, FurnitureSprite>>(new Map());
 	const connectionsRef = useRef<ConnectionLines | null>(null);
 	const interactionRef = useRef<InteractionManager | null>(null);
+	const scoreboardRef = useRef<Scoreboard | null>(null);
 	const [selected, setSelected] = useState<SelectedEntity | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
 	const statusData = useWorkerStatus();
 	const lastClickRef = useRef(0);
+	const lastClickEntityRef = useRef<string | null>(null);
+	const lastClickTimeRef = useRef(0);
+	const eventIdRef = useRef(0);
+	const hoveredRef = useRef<string | null>(null);
+
+	const addEvent = useCallback((text: string) => {
+		const id = ++eventIdRef.current;
+		setActivityEvents((prev) => [...prev.slice(-9), { id, text, time: Date.now() }]);
+	}, []);
 
 	// Shared hit-test logic — takes world coordinates, returns closest matched entity
 	const hitTestWorld = useCallback(
@@ -78,6 +95,26 @@ export default function PixelScene() {
 		const now = Date.now();
 		if (now - lastClickRef.current < 250) return;
 		lastClickRef.current = now;
+
+		// Double-click detection for workers
+		if (entity.type === "worker") {
+			const timeSince = now - lastClickTimeRef.current;
+			const sameEntity = lastClickEntityRef.current === entity.id;
+			lastClickEntityRef.current = entity.id;
+			lastClickTimeRef.current = now;
+
+			if (sameEntity && timeSince < DOUBLE_CLICK_MS) {
+				// Double-click: dispatch worker (or force chat for Sonne)
+				if (entity.id === "sonne-manager") {
+					interactionRef.current?.forceChat();
+				} else {
+					interactionRef.current?.triggerWorker(entity.id);
+				}
+				lastClickEntityRef.current = null;
+				return;
+			}
+		}
+
 		setSelected((prev) =>
 			prev?.type === entity.type && prev?.id === entity.id ? null : entity,
 		);
@@ -98,6 +135,11 @@ export default function PixelScene() {
 			scene.drawWorkstations();
 			// 3. Decorations (pixel-art Graphics — bookshelves, plants, etc.)
 			scene.drawRoomDecor();
+
+			// Scoreboard on the whiteboard (same position as whiteboard: 340, 4)
+			const scoreboard = new Scoreboard(340, 4, 90, 50);
+			scene.decorLayer.addChild(scoreboard.container);
+			scoreboardRef.current = scoreboard;
 
 			// Create worker sprites
 			for (const config of WORKERS) {
@@ -131,8 +173,19 @@ export default function PixelScene() {
 			scene.connectionLayer.addChild(connections.container);
 			connectionsRef.current = connections;
 
-			// Interaction manager (conversations + triggers)
-			const interactions = new InteractionManager(workersRef.current);
+			// Interaction manager (conversations + triggers) with event callback
+			const interactions = new InteractionManager(
+				workersRef.current,
+				(text) => {
+					addEvent(text);
+					// Increment scoreboard based on event type
+					if (text.startsWith("Dispatched")) {
+						scoreboard.increment("dispatches");
+					} else if (text.includes("chatting")) {
+						scoreboard.increment("chats");
+					}
+				},
+			);
 			interactionRef.current = interactions;
 
 			// PixiJS stage-level pointerdown for click handling
@@ -176,10 +229,33 @@ export default function PixelScene() {
 		};
 		window.addEventListener("resize", handleResize);
 
+		// Keyboard shortcuts: 1-5 dispatch, C for chat
+		const handleKeyDown = (e: KeyboardEvent) => {
+			// Ignore if typing in an input
+			if (
+				e.target instanceof HTMLInputElement ||
+				e.target instanceof HTMLTextAreaElement
+			)
+				return;
+
+			const key = e.key.toLowerCase();
+			if (key >= "1" && key <= "5") {
+				const idx = Number.parseInt(key) - 1;
+				if (idx < DISPATCHABLE.length) {
+					interactionRef.current?.triggerWorker(DISPATCHABLE[idx].id);
+				}
+			} else if (key === "c") {
+				interactionRef.current?.forceChat();
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+
 		return () => {
 			window.removeEventListener("mousedown", handleWindowMouseDown, true);
 			window.removeEventListener("resize", handleResize);
+			window.removeEventListener("keydown", handleKeyDown);
 			interactionRef.current?.destroy();
+			scoreboardRef.current?.destroy();
 			for (const sprite of workersRef.current.values()) sprite.destroy();
 			for (const sprite of infraRef.current.values()) sprite.destroy();
 			connectionsRef.current?.destroy();
@@ -187,7 +263,7 @@ export default function PixelScene() {
 			workersRef.current.clear();
 			infraRef.current.clear();
 		};
-	}, [hitTestWorld, toggleSelect]);
+	}, [hitTestWorld, toggleSelect, addEvent]);
 
 	// Wire selection state to connection line visibility
 	useEffect(() => {
@@ -282,6 +358,8 @@ export default function PixelScene() {
 					canTrigger={true}
 				/>
 			)}
+
+			<ActivityFeed events={activityEvents} />
 		</div>
 	);
 }

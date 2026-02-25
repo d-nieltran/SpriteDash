@@ -414,3 +414,53 @@ body {
 	border-color: rgba(232, 121, 249, 0.25);
 	color: #e879f9;
 }
+
+/* Activity feed — floating event log, bottom-left */
+.activity-feed {
+	position: fixed;
+	bottom: 12px;
+	left: 12px;
+	width: 280px;
+	z-index: 45;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	pointer-events: none;
+}
+
+.activity-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 10px;
+	border-radius: 8px;
+	background: rgba(11, 13, 19, 0.85);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border: 1px solid rgba(255, 255, 255, 0.06);
+	transition: opacity 0.5s ease-out;
+}
+
+.activity-dot {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: #e879f9;
+	flex-shrink: 0;
+}
+
+.activity-text {
+	font-size: 11px;
+	color: rgba(255, 255, 255, 0.6);
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.activity-time {
+	font-size: 9px;
+	color: rgba(255, 255, 255, 0.25);
+	font-family: "JetBrains Mono", "SF Mono", monospace;
+	flex-shrink: 0;
+}

@@ -5,6 +5,7 @@ import {
 	TRIGGER_SCRIPTS,
 	type ConversationScript,
 } from "@/lib/conversation-data";
+import { getWorker } from "@/lib/worker-registry";
 
 const CHECK_MIN = 1200; // ~20s at 60fps
 const CHECK_MAX = 2400; // ~40s at 60fps
@@ -21,11 +22,14 @@ type Phase =
 	| "trigger_working"
 	| "trigger_return";
 
+export type EventCallback = (text: string) => void;
+
 export class InteractionManager {
 	private sprites: Map<string, WorkerSprite>;
 	private ticker: Ticker;
 	private timer: number;
 	private phase: Phase = "idle";
+	private onEvent: EventCallback | null = null;
 
 	// Active conversation state
 	private spriteA: WorkerSprite | null = null;
@@ -41,8 +45,12 @@ export class InteractionManager {
 	private triggerTarget: WorkerSprite | null = null;
 	private triggerTargetId = "";
 
-	constructor(sprites: Map<string, WorkerSprite>) {
+	constructor(
+		sprites: Map<string, WorkerSprite>,
+		onEvent?: EventCallback,
+	) {
 		this.sprites = sprites;
+		this.onEvent = onEvent ?? null;
 		this.timer = CHECK_MIN + Math.random() * (CHECK_MAX - CHECK_MIN);
 		this.ticker = new Ticker();
 		this.ticker.add(() => this.update());
@@ -75,6 +83,9 @@ export class InteractionManager {
 		this.triggerTarget = target;
 		this.triggerTargetId = targetId;
 		this.arrivedCount = 0;
+
+		const targetName = getWorker(targetId)?.character ?? targetId;
+		this.emit(`Dispatched ${targetName}`);
 
 		// Sonne walks to target (50px offset to the left)
 		const targetPos = {
@@ -201,6 +212,10 @@ export class InteractionManager {
 		this.spriteA!.startConversing();
 		this.spriteB!.startConversing();
 
+		const nameA = getWorker(this.idA)?.character ?? this.idA;
+		const nameB = getWorker(this.idB)?.character ?? this.idB;
+		this.emit(`${nameA} & ${nameB} chatting`);
+
 		this.script = pickConversation(this.idA, this.idB);
 		this.lineIndex = 0;
 		this.lineTimer = 0;
@@ -272,6 +287,10 @@ export class InteractionManager {
 			});
 			this.spriteB.returnFromInteraction();
 		}
+	}
+
+	private emit(text: string): void {
+		this.onEvent?.(text);
 	}
 
 	destroy(): void {
