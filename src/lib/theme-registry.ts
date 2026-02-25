@@ -4,7 +4,7 @@ export const THEMES: Theme[] = [
 	{
 		id: "office",
 		name: "Office / Lab",
-		floorColor: "#1a1e28",
+		floorColor: "#c8b8a0",
 		spriteSheetPrefix: "themes/office",
 	},
 ];

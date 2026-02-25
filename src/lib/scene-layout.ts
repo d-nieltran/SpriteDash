@@ -69,34 +69,5 @@ export const WORKSTATIONS: Workstation[] = [
 	},
 ];
 
-// Decoration sprites — wall-mounted + plants only (no desk/chair PNGs)
-export interface Decoration {
-	id: string;
-	sprite: string;
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-}
-
-export const DECORATIONS: Decoration[] = [
-	// Back wall (y=0-60) — mounted against opaque wall
-	{ id: "wall-shelf1", sprite: "/sprites/decor/bookshelf.png", x: 30, y: 0, width: 44, height: 60 },
-	{ id: "wall-chart1", sprite: "/sprites/decor/wall-chart.png", x: 120, y: 14, width: 36, height: 36 },
-	{ id: "wall-white1", sprite: "/sprites/decor/whiteboard.png", x: 300, y: 6, width: 72, height: 48 },
-	{ id: "wall-chart2", sprite: "/sprites/decor/wall-chart.png", x: 460, y: 14, width: 36, height: 36 },
-	{ id: "wall-shelf2", sprite: "/sprites/decor/bookshelf.png", x: 600, y: 0, width: 44, height: 60 },
-	{ id: "wall-white2", sprite: "/sprites/decor/whiteboard.png", x: 740, y: 6, width: 72, height: 48 },
-	{ id: "wall-chart3", sprite: "/sprites/decor/wall-chart.png", x: 900, y: 14, width: 36, height: 36 },
-	{ id: "wall-shelf3", sprite: "/sprites/decor/bookshelf.png", x: 1040, y: 0, width: 44, height: 60 },
-	{ id: "wall-chart4", sprite: "/sprites/decor/wall-chart.png", x: 1180, y: 14, width: 36, height: 36 },
-
-	// Corner plants
-	{ id: "plant-nw", sprite: "/sprites/decor/potted-plant-1.png", x: 20, y: 70, width: 24, height: 40 },
-	{ id: "plant-ne", sprite: "/sprites/decor/potted-plant-2.png", x: 1236, y: 70, width: 24, height: 40 },
-	{ id: "plant-sw", sprite: "/sprites/decor/potted-plant-1.png", x: 20, y: 386, width: 24, height: 40 },
-	{ id: "plant-se", sprite: "/sprites/decor/potted-plant-2.png", x: 1236, y: 386, width: 24, height: 40 },
-
-	// Communal
-	{ id: "water1", sprite: "/sprites/decor/water-cooler.png", x: 1100, y: 240, width: 24, height: 44 },
-];
+// Room decorations are now drawn with pixel-art Graphics in SceneManager.drawRoomDecor()
+// (no PNG sprite loading needed — eliminates transparency/checkerboard artifacts)

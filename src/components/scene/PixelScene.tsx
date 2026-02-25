@@ -82,8 +82,8 @@ export default function PixelScene() {
 			await scene.drawFloor(DEFAULT_THEME);
 			// 2. Graphics-drawn desks, monitors, chairs
 			scene.drawWorkstations();
-			// 3. Decorations (includes infra background panels)
-			await scene.loadDecorations();
+			// 3. Decorations (pixel-art Graphics — bookshelves, plants, etc.)
+			scene.drawRoomDecor();
 
 			// Create worker sprites
 			for (const config of WORKERS) {
