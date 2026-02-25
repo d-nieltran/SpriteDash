@@ -13,6 +13,7 @@ import type { SelectedEntity, WorkerStatus } from "@/lib/types";
 
 const WORKER_HIT_SIZE = 64; // Must match WorkerSprite DISPLAY_SIZE
 const INFRA_HIT_SIZE = 48; // Must match FurnitureSprite DISPLAY_SIZE
+const HIT_PADDING = 12; // Extra pixels around hit area for easier clicking
 
 export default function PixelScene() {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -30,6 +31,54 @@ export default function PixelScene() {
 		);
 	}, []);
 
+	// Click handler using React synthetic events on wrapper div
+	// Bypasses PixiJS v8 scaled container event bug entirely
+	const handleSceneClick = useCallback(
+		(e: React.MouseEvent<HTMLDivElement>) => {
+			const canvas = canvasRef.current;
+			const sc = sceneRef.current;
+			if (!canvas || !sc) return;
+
+			// Use getBoundingClientRect + clientX/Y for reliable CSS-pixel coordinates
+			const rect = canvas.getBoundingClientRect();
+			const screenX = e.clientX - rect.left;
+			const screenY = e.clientY - rect.top;
+			const world = sc.screenToWorld(screenX, screenY);
+
+			// Hit-test workers first (on top)
+			for (const [id, sprite] of workersRef.current) {
+				const cx = sprite.container.x;
+				const cy = sprite.container.y;
+				if (
+					world.x >= cx - HIT_PADDING &&
+					world.x <= cx + WORKER_HIT_SIZE + HIT_PADDING &&
+					world.y >= cy - HIT_PADDING &&
+					world.y <= cy + WORKER_HIT_SIZE + HIT_PADDING
+				) {
+					sprite.showSpeechBubble();
+					handleSelect({ type: "worker", id });
+					return;
+				}
+			}
+
+			// Hit-test infrastructure
+			for (const [id, sprite] of infraRef.current) {
+				const cx = sprite.container.x;
+				const cy = sprite.container.y;
+				if (
+					world.x >= cx - HIT_PADDING &&
+					world.x <= cx + INFRA_HIT_SIZE + HIT_PADDING &&
+					world.y >= cy - HIT_PADDING &&
+					world.y <= cy + INFRA_HIT_SIZE + HIT_PADDING
+				) {
+					handleSelect({ type: "infra", id });
+					return;
+				}
+			}
+		},
+		[handleSelect],
+	);
+
 	// Initialize PixiJS scene
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -42,7 +91,7 @@ export default function PixelScene() {
 			await scene.drawFloor(DEFAULT_THEME);
 			await scene.loadDecorations();
 
-			// Create worker sprites (no PixiJS click — we use native canvas events)
+			// Create worker sprites
 			for (const config of WORKERS) {
 				const sprite = new WorkerSprite(config);
 				scene.spriteLayer.addChild(sprite.container);
@@ -74,46 +123,6 @@ export default function PixelScene() {
 			setLoading(false);
 		});
 
-		// Native canvas click handler — bypasses PixiJS v8 scaled container event bug
-		const handleCanvasClick = (e: PointerEvent) => {
-			const sc = sceneRef.current;
-			if (!sc) return;
-
-			const world = sc.screenToWorld(e.offsetX, e.offsetY);
-
-			// Hit-test workers first (they're on top layer)
-			for (const [id, sprite] of workersRef.current) {
-				const cx = sprite.container.x;
-				const cy = sprite.container.y;
-				if (
-					world.x >= cx &&
-					world.x <= cx + WORKER_HIT_SIZE &&
-					world.y >= cy &&
-					world.y <= cy + WORKER_HIT_SIZE
-				) {
-					sprite.showSpeechBubble();
-					handleSelect({ type: "worker", id });
-					return;
-				}
-			}
-
-			// Hit-test infrastructure
-			for (const [id, sprite] of infraRef.current) {
-				const cx = sprite.container.x;
-				const cy = sprite.container.y;
-				if (
-					world.x >= cx &&
-					world.x <= cx + INFRA_HIT_SIZE &&
-					world.y >= cy &&
-					world.y <= cy + INFRA_HIT_SIZE
-				) {
-					handleSelect({ type: "infra", id });
-					return;
-				}
-			}
-		};
-		canvas.addEventListener("pointerdown", handleCanvasClick);
-
 		// Handle resize
 		const handleResize = () => {
 			sceneRef.current?.fitToScreen();
@@ -121,7 +130,6 @@ export default function PixelScene() {
 		window.addEventListener("resize", handleResize);
 
 		return () => {
-			canvas.removeEventListener("pointerdown", handleCanvasClick);
 			window.removeEventListener("resize", handleResize);
 			for (const sprite of workersRef.current.values()) sprite.destroy();
 			for (const sprite of infraRef.current.values()) sprite.destroy();
@@ -130,7 +138,7 @@ export default function PixelScene() {
 			workersRef.current.clear();
 			infraRef.current.clear();
 		};
-	}, [handleSelect]);
+	}, []);
 
 	// Update sprites from status data
 	useEffect(() => {
@@ -179,7 +187,8 @@ export default function PixelScene() {
 
 	return (
 		<div className="dashboard">
-			<div className="canvas-area">
+			{/* biome-ignore lint: click handler for scene interaction */}
+			<div className="canvas-area" onClick={handleSceneClick}>
 				{loading && (
 					<div className="loading-overlay">
 						<span className="loading-text">Initializing SpriteDash...</span>
