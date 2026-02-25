@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@theme {
+	--color-pixel-bg: #1a1c2c;
+	--color-pixel-floor-wood: #b13e53;
+	--color-pixel-floor-tile: #c0c0d0;
+	--color-pixel-floor-carpet: #5d275d;
+	--color-pixel-highlight: #ffffff;
+	--color-pixel-shadow: #090a0f;
+
+	--color-worker-spoolprices: #ef7d57;
+	--color-worker-oncstrata: #0d9488;
+	--color-worker-kol: #3f8efc;
+	--color-worker-oncsync: #a78bfa;
+	--color-worker-nccn: #f59e0b;
+
+	--color-status-idle: #94a3b8;
+	--color-status-working: #22c55e;
+	--color-status-error: #ef4444;
+	--color-status-celebrate: #facc15;
+}
+
+body {
+	margin: 0;
+	background: var(--color-pixel-bg);
+	overflow: hidden;
+	font-family: "Courier New", monospace;
+}
+
+.scene-wrapper {
+	width: 100vw;
+	height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.scene-container {
+	width: 1280px;
+	height: 720px;
+	position: relative;
+	transform-origin: center center;
+}
+
+@keyframes panel-slide-in {
+	from {
+		transform: translateX(100%);
+	}
+	to {
+		transform: translateX(0);
+	}
+}
+
+@keyframes panel-slide-out {
+	from {
+		transform: translateX(0);
+	}
+	to {
+		transform: translateX(100%);
+	}
+}
+
+.detail-panel {
+	animation: panel-slide-in 0.2s ease-out forwards;
+}
+
+.detail-panel--closing {
+	animation: panel-slide-out 0.2s ease-in forwards;
+}
