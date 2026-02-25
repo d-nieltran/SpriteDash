@@ -43,24 +43,19 @@ function sliceWorkerSheet(baseTexture: Texture): WorkerFrames {
 	return frames;
 }
 
-/** Slice a multi-frame furniture sprite (e.g., 64x32 = 2 frames of 32x32) */
+/** Slice a multi-frame furniture sprite into N equal columns */
 function sliceFurnitureFrames(
 	baseTexture: Texture,
-	frameWidth: number,
-	frameHeight: number,
+	numFrames: number,
 ): Texture[] {
-	const cols = Math.floor(baseTexture.width / frameWidth);
+	const frameW = Math.floor(baseTexture.width / numFrames);
+	const frameH = baseTexture.height;
 	const textures: Texture[] = [];
 
-	for (let col = 0; col < cols; col++) {
+	for (let col = 0; col < numFrames; col++) {
 		const frame = new Texture({
 			source: baseTexture.source,
-			frame: new Rectangle(
-				col * frameWidth,
-				0,
-				frameWidth,
-				frameHeight,
-			),
+			frame: new Rectangle(col * frameW, 0, frameW, frameH),
 		});
 		frame.source.scaleMode = "nearest";
 		textures.push(frame);
@@ -109,15 +104,14 @@ export async function loadTexture(path: string): Promise<Texture | null> {
 /** Load a multi-frame furniture sprite, or null if missing */
 export async function loadFurnitureFrames(
 	path: string,
-	frameWidth = 32,
-	frameHeight = 32,
+	numFrames = 2,
 ): Promise<Texture[] | null> {
 	if (furnitureFrameCache.has(path)) return furnitureFrameCache.get(path)!;
 
 	try {
 		const texture = await Assets.load<Texture>(path);
 		texture.source.scaleMode = "nearest";
-		const frames = sliceFurnitureFrames(texture, frameWidth, frameHeight);
+		const frames = sliceFurnitureFrames(texture, numFrames);
 		furnitureFrameCache.set(path, frames);
 		return frames;
 	} catch {
