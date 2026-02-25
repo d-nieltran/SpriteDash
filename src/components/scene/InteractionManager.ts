@@ -53,6 +53,12 @@ export class InteractionManager {
 		return this.phase !== "idle";
 	}
 
+	/** Force a random conversation between two available workers */
+	forceChat(): void {
+		if (this.phase !== "idle") return;
+		this.tryStartConversation();
+	}
+
 	/** Trigger a manual run: Sonne walks to target, dialogue, target works briefly */
 	triggerWorker(targetId: string): void {
 		if (this.phase !== "idle") return;

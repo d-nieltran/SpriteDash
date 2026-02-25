@@ -5,6 +5,7 @@ import { FurnitureSprite } from "../sprites/FurnitureSprite";
 import { ConnectionLines } from "./ConnectionLines";
 import { InteractionManager } from "./InteractionManager";
 import { DetailPanel } from "../panel/DetailPanel";
+import { ActionsPanel } from "../panel/ActionsPanel";
 import { HudBar } from "../hud/HudBar";
 import { WORKERS } from "@/lib/worker-registry";
 import { INFRA } from "@/lib/infra-registry";
@@ -161,7 +162,7 @@ export default function PixelScene() {
 				return;
 
 			const target = e.target as HTMLElement;
-			if (target.closest(".hud-bar") || target.closest(".detail-panel-overlay"))
+			if (target.closest(".hud-bar") || target.closest(".detail-panel-overlay") || target.closest(".actions-panel"))
 				return;
 
 			const world = sc.screenToWorld(screenX, screenY);
@@ -260,6 +261,15 @@ export default function PixelScene() {
 			</div>
 
 			<HudBar />
+
+			<ActionsPanel
+				onDispatch={(targetId) => {
+					interactionRef.current?.triggerWorker(targetId);
+				}}
+				onChat={() => {
+					interactionRef.current?.forceChat();
+				}}
+			/>
 
 			{selected && (
 				<DetailPanel
