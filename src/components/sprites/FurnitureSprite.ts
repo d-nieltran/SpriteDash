@@ -165,10 +165,6 @@ export class FurnitureSprite {
 		}
 	}
 
-	onClick(handler: () => void): void {
-		this.container.on("pointerdown", handler);
-	}
-
 	destroy(): void {
 		this.ticker?.stop();
 		this.ticker?.destroy();

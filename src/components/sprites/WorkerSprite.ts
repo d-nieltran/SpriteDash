@@ -21,6 +21,13 @@ const MOVE_SPEED = 1.5;
 const PAUSE_MIN = 80; // ticks at infra before moving on
 const PAUSE_MAX = 140;
 
+const SPEECH_LINES: Record<string, string[]> = {
+	idle: ["Waiting for work...", "Taking a break", "All caught up!", "☕ Coffee time"],
+	working: ["On it!", "Syncing data...", "Processing...", "Almost done!"],
+	error: ["Something broke!", "Need help here!", "Retrying...", "Ugh, errors!"],
+	celebrate: ["Done! 🎉", "Nailed it!", "Ship it!", "All green ✓"],
+};
+
 export class WorkerSprite {
 	container: Container;
 	config: WorkerConfig;
@@ -41,6 +48,8 @@ export class WorkerSprite {
 	private infraPositions: Position[] = [];
 	private pauseTimer = 0;
 	private lastVisitedIndex = -1;
+	private speechBubble: Container | null = null;
+	private speechTimer = 0;
 
 	constructor(config: WorkerConfig) {
 		this.config = config;
@@ -220,6 +229,20 @@ export class WorkerSprite {
 			}
 		}
 
+		// Speech bubble countdown
+		if (this.speechBubble && this.speechTimer > 0) {
+			this.speechTimer--;
+			// Fade out in the last 30 frames
+			if (this.speechTimer < 30) {
+				this.speechBubble.alpha = this.speechTimer / 30;
+			}
+			if (this.speechTimer <= 0) {
+				this.container.removeChild(this.speechBubble);
+				this.speechBubble.destroy({ children: true });
+				this.speechBubble = null;
+			}
+		}
+
 		// Linear movement towards target
 		if (this.moveTarget) {
 			const dx = this.moveTarget.x - this.container.x;
@@ -307,8 +330,56 @@ export class WorkerSprite {
 		this.moveTarget = { ...this.homePosition };
 	}
 
-	onClick(handler: () => void): void {
-		this.container.on("pointerdown", handler);
+	/** Show a context-aware speech bubble above the worker */
+	showSpeechBubble(): void {
+		// Clear existing bubble
+		if (this.speechBubble) {
+			this.container.removeChild(this.speechBubble);
+			this.speechBubble.destroy({ children: true });
+			this.speechBubble = null;
+		}
+
+		const lines = SPEECH_LINES[this.currentStatus] ?? SPEECH_LINES.idle;
+		const line = lines[Math.floor(Math.random() * lines.length)];
+
+		const bubble = new Container();
+
+		const text = new Text({
+			text: line,
+			style: new TextStyle({
+				fontFamily: "Courier New",
+				fontSize: 9,
+				fill: 0x1a1c2c,
+				align: "center",
+			}),
+		});
+
+		const padX = 8;
+		const padY = 4;
+		const bg = new Graphics();
+		bg.roundRect(0, 0, text.width + padX * 2, text.height + padY * 2, 6);
+		bg.fill(0xffffff);
+		// Small triangle pointer
+		const cx = (text.width + padX * 2) / 2;
+		const bh = text.height + padY * 2;
+		bg.moveTo(cx - 4, bh);
+		bg.lineTo(cx, bh + 5);
+		bg.lineTo(cx + 4, bh);
+		bg.closePath();
+		bg.fill(0xffffff);
+
+		text.x = padX;
+		text.y = padY;
+		bubble.addChild(bg);
+		bubble.addChild(text);
+
+		// Position above the sprite
+		bubble.x = DISPLAY_SIZE / 2 - (text.width + padX * 2) / 2;
+		bubble.y = -(text.height + padY * 2 + 10);
+
+		this.container.addChild(bubble);
+		this.speechBubble = bubble;
+		this.speechTimer = 180; // ~3 seconds at 60fps
 	}
 
 	destroy(): void {

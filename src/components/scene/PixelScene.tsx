@@ -11,6 +11,9 @@ import { DEFAULT_THEME } from "@/lib/theme-registry";
 import { useWorkerStatus } from "@/lib/status-fetcher";
 import type { SelectedEntity, WorkerStatus } from "@/lib/types";
 
+const WORKER_HIT_SIZE = 64; // Must match WorkerSprite DISPLAY_SIZE
+const INFRA_HIT_SIZE = 48; // Must match FurnitureSprite DISPLAY_SIZE
+
 export default function PixelScene() {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const sceneRef = useRef<SceneManager | null>(null);
@@ -39,12 +42,9 @@ export default function PixelScene() {
 			await scene.drawFloor(DEFAULT_THEME);
 			await scene.loadDecorations();
 
-			// Create worker sprites
+			// Create worker sprites (no PixiJS click — we use native canvas events)
 			for (const config of WORKERS) {
 				const sprite = new WorkerSprite(config);
-				sprite.onClick(() =>
-					handleSelect({ type: "worker", id: config.id }),
-				);
 				scene.spriteLayer.addChild(sprite.container);
 				workersRef.current.set(config.id, sprite);
 			}
@@ -52,9 +52,6 @@ export default function PixelScene() {
 			// Create infrastructure sprites
 			for (const config of INFRA) {
 				const sprite = new FurnitureSprite(config);
-				sprite.onClick(() =>
-					handleSelect({ type: "infra", id: config.id }),
-				);
 				scene.furnitureLayer.addChild(sprite.container);
 				infraRef.current.set(config.id, sprite);
 			}
@@ -77,6 +74,46 @@ export default function PixelScene() {
 			setLoading(false);
 		});
 
+		// Native canvas click handler — bypasses PixiJS v8 scaled container event bug
+		const handleCanvasClick = (e: PointerEvent) => {
+			const sc = sceneRef.current;
+			if (!sc) return;
+
+			const world = sc.screenToWorld(e.offsetX, e.offsetY);
+
+			// Hit-test workers first (they're on top layer)
+			for (const [id, sprite] of workersRef.current) {
+				const cx = sprite.container.x;
+				const cy = sprite.container.y;
+				if (
+					world.x >= cx &&
+					world.x <= cx + WORKER_HIT_SIZE &&
+					world.y >= cy &&
+					world.y <= cy + WORKER_HIT_SIZE
+				) {
+					sprite.showSpeechBubble();
+					handleSelect({ type: "worker", id });
+					return;
+				}
+			}
+
+			// Hit-test infrastructure
+			for (const [id, sprite] of infraRef.current) {
+				const cx = sprite.container.x;
+				const cy = sprite.container.y;
+				if (
+					world.x >= cx &&
+					world.x <= cx + INFRA_HIT_SIZE &&
+					world.y >= cy &&
+					world.y <= cy + INFRA_HIT_SIZE
+				) {
+					handleSelect({ type: "infra", id });
+					return;
+				}
+			}
+		};
+		canvas.addEventListener("pointerdown", handleCanvasClick);
+
 		// Handle resize
 		const handleResize = () => {
 			sceneRef.current?.fitToScreen();
@@ -84,6 +121,7 @@ export default function PixelScene() {
 		window.addEventListener("resize", handleResize);
 
 		return () => {
+			canvas.removeEventListener("pointerdown", handleCanvasClick);
 			window.removeEventListener("resize", handleResize);
 			for (const sprite of workersRef.current.values()) sprite.destroy();
 			for (const sprite of infraRef.current.values()) sprite.destroy();
